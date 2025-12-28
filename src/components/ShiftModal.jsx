@@ -112,23 +112,23 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
           {isClose && (
             <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-200 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Fondo Inicial (DOP):</span>
-                <span className="font-medium text-slate-900">${(currentShift.startAmount || 0).toLocaleString()}</span>
+                <span className="text-slate-700 font-bold">Fondo Inicial (DOP):</span>
+                <span className="font-bold text-slate-900">${(currentShift.startAmount || 0).toLocaleString()}</span>
               </div>
               {showCurrencyInput && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Fondo Inicial (USD):</span>
-                  <span className="font-medium text-green-600">${(currentShift.usdStartAmount || 0).toLocaleString()}</span>
+                  <span className="text-slate-700 font-bold">Fondo Inicial (USD):</span>
+                  <span className="font-bold text-green-700">${(currentShift.usdStartAmount || 0).toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Ventas Totales:</span>
-                <span className="font-medium text-green-600">+${(currentShift.salesTotal || 0).toLocaleString()}</span>
+                <span className="text-slate-700 font-bold">Ventas Totales:</span>
+                <span className="font-bold text-green-700">+${(currentShift.salesTotal || 0).toLocaleString()}</span>
               </div>
               {(currentShift.currencyPayouts || 0) > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Pagos Divisas:</span>
-                  <span className="font-medium text-red-600">-${(currentShift.currencyPayouts).toLocaleString()}</span>
+                  <span className="text-slate-700 font-bold">Pagos Divisas:</span>
+                  <span className="font-bold text-red-700">-${(currentShift.currencyPayouts).toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between text-lg font-bold pt-2 border-t border-slate-200">
