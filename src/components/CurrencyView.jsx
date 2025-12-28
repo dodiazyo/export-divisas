@@ -7,8 +7,6 @@ export default function CurrencyView({ settings, onUpdateSettings, onTransaction
   
   // Transaction State
   const [bills, setBills] = useState({});
-  const [entryQty, setEntryQty] = useState('');
-  const qtyInputRef = useRef(null);
 
   const [totalForeign, setTotalForeign] = useState(0); // Renamed from totalUSD
   const [totalDOP, setTotalDOP] = useState(0);
@@ -21,15 +19,12 @@ export default function CurrencyView({ settings, onUpdateSettings, onTransaction
   useEffect(() => {
     if (currency === 'USD') {
       setRate(settings?.exchangeRate || 58.50);
-      // Reset bills if switching currency? Or keep them? Better reset to avoid confusion
-      // Actually, if we want to allow mixing, we'd need separate bill states. 
-      // For simplicity in this iteration, we reset bills when switching.
+      // Reset bills when switching to avoid confusion
       setBills(denomsUSD.reduce((acc, d) => ({...acc, [d]: 0}), {}));
     } else {
       setRate(settings?.exchangeRateEur || 64.00);
       setBills(denomsEUR.reduce((acc, d) => ({...acc, [d]: 0}), {}));
     }
-    setEntryQty('');
   }, [currency, settings]);
 
   // Calculate totals
@@ -42,32 +37,10 @@ export default function CurrencyView({ settings, onUpdateSettings, onTransaction
     setTotalDOP(total * rate);
   }, [bills, rate]);
 
-  // Focus input on mount
-  useEffect(() => {
-    if (qtyInputRef.current) {
-      qtyInputRef.current.focus();
-    }
-  }, []);
-
-  const handleAddBill = (denom) => {
-    const qty = entryQty === '' ? 1 : parseInt(entryQty);
-    
-    if (qty > 0) {
-      setBills(prev => ({
-        ...prev,
-        [denom]: prev[denom] + qty
-      }));
-      setEntryQty(''); // Reset qty
-      qtyInputRef.current.focus(); // Keep focus
-    }
-  };
-
   const handleClearBills = () => {
     if (window.confirm('¿Borrar todo?')) {
       const zeroed = currentDenoms.reduce((acc, d) => ({...acc, [d]: 0}), {});
       setBills(zeroed);
-      setEntryQty('');
-      qtyInputRef.current.focus();
     }
   };
 
@@ -147,7 +120,6 @@ A PAGAR: RD$ ${totalDOP.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
       // Reset
       const zeroed = currentDenoms.reduce((acc, d) => ({...acc, [d]: 0}), {});
       setBills(zeroed);
-      setEntryQty('');
       alert("Transacción procesada correctamente.");
     }
   };
@@ -213,58 +185,53 @@ A PAGAR: RD$ ${totalDOP.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
           {/* LEFT: Entry Panel */}
           <div className="lg:col-span-7 flex flex-col gap-4">
             
-            {/* Input Display */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-              <label className="block text-sm font-bold text-slate-500 mb-2">Cantidad de Billetes</label>
-              <div className="relative">
-                <input
-                  ref={qtyInputRef}
-                  type="number"
-                  value={entryQty}
-                  onChange={e => setEntryQty(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      // Optional: Could map Enter to a default action, but buttons are safer
-                    }
-                  }}
-                  className="w-full text-4xl font-bold text-slate-800 bg-slate-50 border-2 border-slate-200 rounded-xl p-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all placeholder:text-slate-300"
-                  placeholder="1"
-                />
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">
-                  Escribe cantidad y toca un billete
-                </div>
-              </div>
-            </div>
-
-            {/* Denomination Grid */}
-            <div className="grid grid-cols-3 gap-4 flex-1">
+            {/* Denomination Grid - Full Width now since Input Panel is gone */}
+            <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-4 auto-rows-min content-start">
               {currentDenoms.map(denom => (
-                <button
+                <div
                   key={denom}
-                  onClick={() => handleAddBill(denom)}
                   className={`
-                    relative group bg-white border-2 rounded-2xl p-4 flex flex-col items-center justify-center transition-all duration-100 shadow-sm hover:shadow-md hover:-translate-y-1
+                    relative group border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all duration-200 shadow-sm
                     ${currency === 'USD' 
-                      ? 'border-slate-200 hover:border-green-500 hover:bg-green-50 active:bg-green-100' 
-                      : 'border-slate-200 hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100'}
+                      ? 'bg-white border-slate-200 focus-within:border-green-500 focus-within:ring-4 focus-within:ring-green-50' 
+                      : 'bg-white border-slate-200 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50'}
                   `}
+                  onClick={() => {
+                    // Focus inner input on card click
+                    const input = document.getElementById(`input-${currency}-${denom}`);
+                    if (input) input.focus();
+                  }}
                 >
-                  <span className={`text-3xl font-bold ${currency === 'USD' ? 'text-slate-700 group-hover:text-green-700' : 'text-slate-700 group-hover:text-blue-700'}`}>
-                    {currency === 'USD' ? '$' : '€'}{denom}
-                  </span>
-                  <span className={`text-xs font-bold ${currency === 'USD' ? 'text-slate-400 group-hover:text-green-600' : 'text-slate-400 group-hover:text-blue-600'}`}>
+                  <label htmlFor={`input-${currency}-${denom}`} className="cursor-pointer flex flex-col items-center">
+                    <span className={`text-2xl font-bold mb-2 ${currency === 'USD' ? 'text-slate-700' : 'text-slate-700'}`}>
+                      {currency === 'USD' ? '$' : '€'}{denom}
+                    </span>
+                  </label>
+                  
+                  <input
+                    id={`input-${currency}-${denom}`}
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    className={`
+                      w-20 text-center text-xl font-bold bg-slate-50 border border-slate-200 rounded-lg py-1 px-1 outline-none transition-colors
+                      placeholder:text-slate-300
+                      ${currency === 'USD' ? 'focus:bg-green-50 focus:text-green-800' : 'focus:bg-blue-50 focus:text-blue-800'}
+                    `}
+                    value={bills[denom] || ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                      if (!isNaN(val) && val >= 0) {
+                        setBills(prev => ({ ...prev, [denom]: val }));
+                      }
+                    }}
+                    onFocus={(e) => e.target.select()} // Auto-select all on focus
+                  />
+                  
+                  <span className={`text-[10px] uppercase font-bold mt-2 ${currency === 'USD' ? 'text-slate-400' : 'text-slate-400'}`}>
                     {currency}
                   </span>
-                  
-                  {/* Badge */}
-                  {bills[denom] > 0 && (
-                    <div className={`absolute top-2 right-2 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-sm ${
-                      currency === 'USD' ? 'bg-green-600' : 'bg-blue-600'
-                    }`}>
-                      {bills[denom]}
-                    </div>
-                  )}
-                </button>
+                </div>
               ))}
             </div>
           </div>
