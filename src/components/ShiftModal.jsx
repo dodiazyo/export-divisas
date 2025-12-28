@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Lock, Save, AlertTriangle, CheckCircle } from 'lucide-react';
 
-export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, currentShift, showCurrencyInput }) {
+export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, currentShift, showCurrencyInput, canSkip = true }) {
   const [amount, setAmount] = useState('');
   const [usdAmount, setUsdAmount] = useState('');
   const [difference, setDifference] = useState(null);
@@ -183,13 +183,17 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
           )}
 
           <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={isClose ? onClose : onSkip}
-              className="flex-1 py-4 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
-            >
-              {isClose ? 'Cancelar' : 'Omitir'}
-            </button>
+            {(!isClose && !canSkip) ? (
+              <div className="flex-1"></div> // Espaciador para mantener diseño si se oculta
+            ) : (
+              <button
+                type="button"
+                onClick={isClose ? onClose : onSkip}
+                className="flex-1 py-4 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                {isClose ? 'Cancelar' : 'Omitir'}
+              </button>
+            )}
             <button
               type="submit"
               className={`flex-1 py-4 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${
