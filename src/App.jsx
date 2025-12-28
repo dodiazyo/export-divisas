@@ -92,7 +92,8 @@ export default function App() {
       eurOnHand: 0,
       currencyPayouts: 0,
       salesTotal: 0, // Not used but kept for compatibility
-      transactions: 0
+      transactions: 0,
+      totalGain: 0
     };
     setShift(newShift);
     setShowShiftModal(false);
@@ -117,7 +118,8 @@ export default function App() {
       expectedAmount: expectedAmount,
       difference: finalAmount - expectedAmount,
       usdDifference: finalUsdAmount - expectedUsd,
-      eurDifference: finalEurAmount - expectedEur
+      eurDifference: finalEurAmount - expectedEur,
+      totalGain: shift.totalGain || 0
     };
     
     setShiftHistory(prev => [closedShift, ...prev]);
@@ -143,7 +145,9 @@ export default function App() {
       address: 'Calle Principal #123',
       receiptMessage: '¡Gracias por su preferencia!',
       exchangeRate: 58.50,
-      exchangeRateEur: 64.00
+      salesRate: 60.00,
+      exchangeRateEur: 64.00,
+      salesRateEur: 66.00
     };
     
     if (saved) {
@@ -218,10 +222,21 @@ export default function App() {
 
     const { amount, dopAmount, breakdown, currency = 'USD' } = transactionData;
 
+    // Calculate Gain
+    // Start with default spread if settings not fully updated
+    const buyRate = transactionData.rate;
+    const sellRate = currency === 'USD' 
+      ? (storeSettings.salesRate || buyRate + 1.5) 
+      : (storeSettings.salesRateEur || buyRate + 2.0);
+    
+    const gainPerUnit = sellRate - buyRate;
+    const totalGain = gainPerUnit * amount;
+
     setShift(prev => {
       const updates = {
         currencyPayouts: (prev.currencyPayouts || 0) + dopAmount, // Total DOP paid out
-        transactions: prev.transactions + 1
+        transactions: prev.transactions + 1,
+        totalGain: (prev.totalGain || 0) + totalGain // Accumulate Gain
       };
 
       if (currency === 'EUR') {
@@ -240,7 +255,9 @@ export default function App() {
       currency: currency,
       amount,
       dopAmount,
-      rate: transactionData.rate,
+      rate: buyRate,
+      salesRate: sellRate, // Store reference
+      gain: totalGain,     // Store calculated gain
       breakdown,
       shiftId: shift.id,
       cashier: user.name

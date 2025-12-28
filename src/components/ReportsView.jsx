@@ -19,21 +19,23 @@ export default function ReportsView({ salesHistory = [] }) {
   const metrics = useMemo(() => {
     const totalUSD = filteredSales.reduce((sum, sale) => sum + (sale.usdAmount || 0), 0);
     const totalDOP = filteredSales.reduce((sum, sale) => sum + (sale.dopAmount || 0), 0);
+    const totalGain = filteredSales.reduce((sum, sale) => sum + (sale.gain || 0), 0);
     const transactions = filteredSales.length;
     const avgRate = totalUSD > 0 ? totalDOP / totalUSD : 0;
     
-    return { totalUSD, totalDOP, transactions, avgRate };
+    return { totalUSD, totalDOP, totalGain, transactions, avgRate };
   }, [filteredSales]);
 
   // --- EXPORT CSV ---
   const handleExport = () => {
-    const headers = ['ID', 'Fecha', 'USD Comprado', 'Tasa', 'DOP Pagado', 'Cajero'];
+    const headers = ['ID', 'Fecha', 'USD Comprado', 'Tasa', 'DOP Pagado', 'Ganancia (DOP)', 'Cajero'];
     const rows = filteredSales.map(sale => [
       sale.id,
       new Date(sale.date).toLocaleString(),
       sale.usdAmount,
       sale.rate,
       sale.dopAmount,
+      sale.gain || 0,
       sale.cashier
     ]);
 
@@ -98,7 +100,7 @@ export default function ReportsView({ salesHistory = [] }) {
           </div>
 
           {/* KPI CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group">
               <div className="absolute right-0 top-0 w-32 h-32 bg-green-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-110" />
               <div className="relative z-10">
@@ -112,6 +114,14 @@ export default function ReportsView({ salesHistory = [] }) {
               <div className="relative z-10">
                 <p className="text-slate-500 text-sm font-medium uppercase tracking-wider">DOP Pagados</p>
                 <h3 className="text-3xl font-bold text-slate-800 mt-2">RD$ {metrics.totalDOP.toLocaleString(undefined, {minimumFractionDigits: 2})}</h3>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-yellow-200 relative overflow-hidden group">
+              <div className="absolute right-0 top-0 w-32 h-32 bg-yellow-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-110" />
+              <div className="relative z-10">
+                <p className="text-yellow-600 text-sm font-bold uppercase tracking-wider">Ganancia Total</p>
+                <h3 className="text-3xl font-bold text-yellow-700 mt-2">RD$ {metrics.totalGain.toLocaleString(undefined, {minimumFractionDigits: 2})}</h3>
               </div>
             </div>
 
@@ -138,13 +148,14 @@ export default function ReportsView({ salesHistory = [] }) {
                     <th className="p-4">USD Comprado</th>
                     <th className="p-4">Tasa</th>
                     <th className="p-4">DOP Pagado</th>
+                    <th className="p-4">Ganancia (DOP)</th>
                     <th className="p-4">Cajero</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredSales.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="p-8 text-center text-slate-400">
+                      <td colSpan="6" className="p-8 text-center text-slate-400">
                         No hay transacciones en este rango
                       </td>
                     </tr>
@@ -155,6 +166,7 @@ export default function ReportsView({ salesHistory = [] }) {
                         <td className="p-4 font-bold text-green-600">${sale.usdAmount}</td>
                         <td className="p-4 text-slate-600">{sale.rate}</td>
                         <td className="p-4 font-bold text-slate-800">RD$ {sale.dopAmount.toLocaleString()}</td>
+                        <td className="p-4 font-bold text-yellow-600">RD$ {(sale.gain || 0).toLocaleString()}</td>
                         <td className="p-4 text-slate-500 text-sm">{sale.cashier}</td>
                       </tr>
                     ))

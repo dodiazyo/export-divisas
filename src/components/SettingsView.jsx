@@ -18,7 +18,9 @@ export default function SettingsView({
     address: '',
     receiptMessage: '',
     exchangeRate: 58.50,
-    exchangeRateEur: 64.00
+    salesRate: 60.00,
+    exchangeRateEur: 64.00,
+    salesRateEur: 66.00
   });
   
   const [showSuccess, setShowSuccess] = useState(false);
@@ -115,42 +117,87 @@ export default function SettingsView({
           <div className="p-6 space-y-6">
             
             {/* Exchange Rate - PRIORITY */}
+            {/* Exchange Rate - PRIORITY */}
             <div className="bg-green-50 p-6 rounded-xl border border-green-100 grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* USD RATE */}
-              <div>
-                <label className="block text-lg font-bold text-green-800 mb-2 flex items-center gap-2">
+              <div className="space-y-4">
+                <label className="block text-lg font-bold text-green-800 flex items-center gap-2 border-b border-green-200 pb-2">
                   <DollarSign size={24} className="text-green-600" />
-                  Tasa Dólar (USD)
+                  Divisa USD
                 </label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.exchangeRate || ''}
-                    onChange={e => setFormData(prev => ({ ...prev, exchangeRate: parseFloat(e.target.value) }))}
-                    className="w-full text-3xl font-bold px-4 py-3 rounded-lg border border-green-300 focus:border-green-500 focus:ring-4 focus:ring-green-100 outline-none text-green-900 bg-white placeholder:text-green-300"
-                    placeholder="0.00"
-                  />
-                  <span className="text-green-600 font-medium">DOP</span>
+                
+                <div>
+                  <label className="block text-xs font-bold text-green-700 mb-1 uppercase">Tasa Compra (Pagamos)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.exchangeRate || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, exchangeRate: parseFloat(e.target.value) }))}
+                      className="w-full text-2xl font-bold px-3 py-2 rounded-lg border border-green-300 focus:border-green-500 outline-none text-green-900 bg-white"
+                      placeholder="0.00"
+                    />
+                    <span className="text-green-600 font-bold text-xs">DOP</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-green-700 mb-1 uppercase">Tasa Venta (Referencia)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.salesRate || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, salesRate: parseFloat(e.target.value) }))}
+                      className="w-full text-2xl font-bold px-3 py-2 rounded-lg border border-green-300 focus:border-green-500 outline-none text-green-900 bg-white/50"
+                      placeholder="0.00"
+                    />
+                    <span className="text-green-600 font-bold text-xs">DOP</span>
+                  </div>
+                  <p className="text-[10px] text-green-600 mt-1">
+                    Margen estimado: RD$ {((formData.salesRate || 0) - (formData.exchangeRate || 0)).toFixed(2)}
+                  </p>
                 </div>
               </div>
 
               {/* EUR RATE */}
-              <div>
-                <label className="block text-lg font-bold text-blue-800 mb-2 flex items-center gap-2">
+              <div className="space-y-4">
+                <label className="block text-lg font-bold text-blue-800 flex items-center gap-2 border-b border-blue-200 pb-2">
                   <span className="text-2xl">€</span>
-                  Tasa Euro (EUR)
+                  Divisa EUR
                 </label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.exchangeRateEur || ''}
-                    onChange={e => setFormData(prev => ({ ...prev, exchangeRateEur: parseFloat(e.target.value) }))}
-                    className="w-full text-3xl font-bold px-4 py-3 rounded-lg border border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none text-blue-900 bg-white placeholder:text-blue-300"
-                    placeholder="0.00"
-                  />
-                  <span className="text-blue-600 font-medium">DOP</span>
+                
+                <div>
+                  <label className="block text-xs font-bold text-blue-700 mb-1 uppercase">Tasa Compra (Pagamos)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.exchangeRateEur || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, exchangeRateEur: parseFloat(e.target.value) }))}
+                      className="w-full text-2xl font-bold px-3 py-2 rounded-lg border border-blue-300 focus:border-blue-500 outline-none text-blue-900 bg-white"
+                      placeholder="0.00"
+                    />
+                    <span className="text-blue-600 font-bold text-xs">DOP</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-blue-700 mb-1 uppercase">Tasa Venta (Referencia)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.salesRateEur || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, salesRateEur: parseFloat(e.target.value) }))}
+                      className="w-full text-2xl font-bold px-3 py-2 rounded-lg border border-blue-300 focus:border-blue-500 outline-none text-blue-900 bg-white/50"
+                      placeholder="0.00"
+                    />
+                    <span className="text-blue-600 font-bold text-xs">DOP</span>
+                  </div>
+                  <p className="text-[10px] text-blue-600 mt-1">
+                    Margen estimado: RD$ {((formData.salesRateEur || 0) - (formData.exchangeRateEur || 0)).toFixed(2)}
+                  </p>
                 </div>
               </div>
             </div>

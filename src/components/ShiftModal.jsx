@@ -137,10 +137,17 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
               </div>
               
               {showCurrencyInput && (
-                <div className="flex justify-between text-lg font-bold pt-2 border-t border-slate-200 mt-2">
-                  <span className="text-slate-700">Esperado (USD):</span>
-                  <span className="text-green-600">${expectedUsd.toLocaleString()}</span>
-                </div>
+                <>
+                  <div className="flex justify-between text-lg font-bold pt-2 border-t border-slate-200 mt-2">
+                    <span className="text-slate-700">Esperado (USD):</span>
+                    <span className="text-green-600">${expectedUsd.toLocaleString()}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center bg-yellow-50 p-2 rounded-lg border border-yellow-200 mt-2">
+                    <span className="text-yellow-800 text-sm font-bold uppercase">Ganancia Estimada:</span>
+                    <span className="text-yellow-900 font-bold text-lg">RD$ {(currentShift.totalGain || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                  </div>
+                </>
               )}
             </div>
           )}
