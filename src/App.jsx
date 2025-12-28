@@ -222,6 +222,15 @@ export default function App() {
 
     const { amount, dopAmount, breakdown, currency = 'USD' } = transactionData;
 
+    // --- VALIDATION: Check for sufficient DOP funds ---
+    // Available = Start Amount + Sales (if any) - Payouts
+    const availableFunds = (shift.startAmount || 0) + (shift.salesTotal || 0) - (shift.currencyPayouts || 0);
+    
+    if (dopAmount > availableFunds) {
+      alert(`⚠️ FONDOS INSUFICIENTES\n\nNo tiene suficientes pesos en caja para realizar esta operación.\n\nDisponible: RD$ ${availableFunds.toLocaleString()}\nRequerido: RD$ ${dopAmount.toLocaleString()}\nFaltante: RD$ ${(dopAmount - availableFunds).toLocaleString()}`);
+      return false;
+    }
+
     // Calculate Gain
     // Start with default spread if settings not fully updated
     const buyRate = transactionData.rate;
