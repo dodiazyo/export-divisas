@@ -416,7 +416,7 @@ export default function App() {
         mode={shiftModalMode}
         onClose={() => setShowShiftModal(false)}
         onConfirm={shiftModalMode === 'open' ? handleOpenShift : handleCloseShift}
-        onSkip={() => {}} // No skip allowed in this app
+        onSkip={() => handleOpenShift(0, 0)}
         currentShift={shift}
         showCurrencyInput={true}
       />
