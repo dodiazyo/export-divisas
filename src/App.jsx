@@ -46,9 +46,25 @@ export default function App() {
 
   // Check for open shift on login
   useEffect(() => {
-    if (user && !shift) {
-      setShiftModalMode('open');
-      setShowShiftModal(true);
+    if (user) {
+      // Si hay un turno abierto pero pertenece a otro usuario
+      if (shift && shift.userId !== user.id) {
+        // Si el turno no tiene transacciones, lo cerramos/limpiamos automáticamente para dar paso al nuevo usuario
+        if (shift.transactions === 0) {
+          setShift(null);
+          // El siguiente ciclo del efecto detectará !shift y abrirá el modal
+          return;
+        } else {
+          // TODO: Si el turno tiene transacciones, quizás deberíamos advertir o forzar cierre. 
+          // Por ahora, para evitar pérdida de datos, mantenemos el comportamiento pero idealmente se debería cerrar.
+          // Para este caso específico solicitado (Admin omite -> Cajero entra), transactions será 0.
+        }
+      }
+
+      if (!shift) {
+        setShiftModalMode('open');
+        setShowShiftModal(true);
+      }
     }
   }, [user, shift]);
 
