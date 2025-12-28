@@ -13,17 +13,5 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
-# Start the server and open browser
-# We use & to run in background, wait a bit, then open URL
-npm run dev &
-PID=$!
-
-# Wait for server to be ready (approximate)
-sleep 3
-open "http://localhost:5173"
-
-echo "App is running! Do not close this window."
-echo "Press Ctrl+C to stop."
-
-# Keep script running
-wait $PID
+# Start the server and open browser (using Vite's --open flag)
+npm run dev -- --open
