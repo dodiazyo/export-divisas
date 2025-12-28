@@ -112,9 +112,15 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
           {isClose && (
             <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-200 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Fondo Inicial:</span>
-                <span className="font-medium">${(currentShift.startAmount || 0).toLocaleString()}</span>
+                <span className="text-slate-500">Fondo Inicial (DOP):</span>
+                <span className="font-medium text-slate-900">${(currentShift.startAmount || 0).toLocaleString()}</span>
               </div>
+              {showCurrencyInput && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Fondo Inicial (USD):</span>
+                  <span className="font-medium text-green-600">${(currentShift.usdStartAmount || 0).toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Ventas Totales:</span>
                 <span className="font-medium text-green-600">+${(currentShift.salesTotal || 0).toLocaleString()}</span>
