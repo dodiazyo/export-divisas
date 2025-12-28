@@ -16,14 +16,38 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
     }
   }, [isOpen]);
 
-  const handleAmountChange = (val) => {
-    setAmount(val);
-    calculateDifference(val, usdAmount);
+  // Helper to format number with commas
+  const formatNumber = (val) => {
+    if (!val) return '';
+    const raw = val.replace(/,/g, '');
+    if (isNaN(raw)) return val;
+    const parts = raw.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.join('.');
   };
 
-  const handleUsdAmountChange = (val) => {
-    setUsdAmount(val);
-    calculateDifference(amount, val);
+  // Helper to remove commas for calculation
+  const parseNumber = (val) => {
+    if (!val) return '';
+    return val.replace(/,/g, '');
+  };
+
+  const handleAmountChange = (valRaw) => {
+    // Remove invalid chars
+    const val = valRaw.replace(/[^0-9.]/g, '');
+    // Prevent multiple dots
+    if ((val.match(/\./g) || []).length > 1) return;
+
+    setAmount(formatNumber(val));
+    calculateDifference(val, parseNumber(usdAmount));
+  };
+
+  const handleUsdAmountChange = (valRaw) => {
+    const val = valRaw.replace(/[^0-9.]/g, '');
+    if ((val.match(/\./g) || []).length > 1) return;
+
+    setUsdAmount(formatNumber(val));
+    calculateDifference(parseNumber(amount), val);
   };
 
   const calculateDifference = (dopVal, usdVal) => {
@@ -39,7 +63,7 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
 
       // USD Difference
       if (usdVal && showCurrencyInput) {
-        const expectedUsd = (currentShift.usdOnHand || 0); // Assuming usdOnHand tracks total USD
+        const expectedUsd = (currentShift.usdOnHand || 0); 
         const actualUsd = parseFloat(usdVal);
         setUsdDifference(actualUsd - expectedUsd);
       } else {
@@ -54,7 +78,9 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!amount) return;
-    onConfirm(parseFloat(amount), usdAmount ? parseFloat(usdAmount) : 0);
+    const rawAmount = parseFloat(parseNumber(amount));
+    const rawUsd = usdAmount ? parseFloat(parseNumber(usdAmount)) : 0;
+    onConfirm(rawAmount, rawUsd);
   };
 
   if (!isOpen) return null;
@@ -121,9 +147,8 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">RD$</span>
               <input
-                type="number"
-                step="any"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 required
                 autoFocus
                 value={amount}
@@ -143,9 +168,8 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-green-600 font-bold">$</span>
                 <input
-                  type="number"
-                  step="any"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={usdAmount}
                   onChange={e => handleUsdAmountChange(e.target.value)}
                   className="w-full text-3xl font-bold text-center p-4 border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 outline-none transition-all text-slate-900 bg-white placeholder:text-slate-300"
