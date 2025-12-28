@@ -1,0 +1,32 @@
+GUÍA DE INSTALACIÓN Y USO - DIVISAS APP
+
+¡Hola! Para usar este programa en tu computadora Windows, sigue estos 3 pasos sencillos.
+
+PASO 1: INSTALAR EL MOTOR (NODE.JS)
+Este programa necesita "Node.js" para funcionar. Si ya lo tienes, salta al paso 2.
+1. Ve a esta página: https://nodejs.org/
+2. Descarga la versión "LTS" (Recomendada).
+3. Instálalo dándole a "Siguiente" a todo hasta finalizar.
+
+PASO 2: EJECUTAR EL PROGRAMA
+1. Descomprime el archivo ZIP que descargaste en una carpeta (ej: en el Escritorio o Documentos).
+2. Entra en la carpeta.
+3. Busca el archivo llamado "start_app.cmd" (puede que solo veas "start_app").
+4. Dale doble clic.
+   - La primera vez verás una ventana negra instalando cosas. Espera unos minutos.
+   - Luego abrirá automáticamente el navegador con la aplicación.
+   - ¡Listo para usar!
+
+PASO 3: PONER EL ICONO EN EL ESCRITORIO (OPCIONAL)
+Para que se vea profesional y sea fácil de abrir:
+1. Dale clic DERECHO al archivo "start_app.cmd".
+2. Elige "Enviar a" > "Escritorio (crear acceso directo)".
+3. Ve a tu Escritorio, busca el nuevo acceso directo.
+4. Clic derecho > "Propiedades" > botón "Cambiar icono".
+5. Dale a "Examinar" y busca dentro de la carpeta del programa -> carpeta "public" -> selecciona el archivo "app-icon.ico" (o .png).
+6. Aceptar y listo.
+
+NOTA IMPORTANTE:
+- No cierres la ventana negra que se abre al iniciar, esa es el "motor" de la aplicación. Si la cierras, la app dejará de funcionar. Simplemente minimízala.
+
+¡Que lo disfrutes!
