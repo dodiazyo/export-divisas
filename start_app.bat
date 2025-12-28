@@ -28,8 +28,7 @@ echo.
 echo NO CIERRES ESTA VENTANA MIENTRAS USES LA APP.
 echo.
 
-:: Start server and open browser
-start "" "http://localhost:5173"
-call npm run dev
+:: Start server and open browser (using Vite's --open flag is more reliable)
+call npm run dev -- --open
 
 pause
