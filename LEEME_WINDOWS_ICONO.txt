@@ -1,0 +1,20 @@
+# Instrucciones para configurar el Icono en Windows
+
+He incluido un nuevo icono profesional para tu aplicación. Para usarlo en el Escritorio de tu amigo, sigue estos pasos:
+
+1.  **Ejecutar la App:**
+    -   Como sabes, usa el archivo `start_app.cmd` para iniciar el programa.
+
+2.  **Crear Acceso Directo (Para poner el Icono):**
+    -   Haz clic derecho sobre `start_app.cmd`.
+    -   Selecciona **"Enviar a"** > **"Escritorio (crear acceso directo)"**.
+
+3.  **Cambiar el Icono del Acceso Directo:**
+    -   Ve al Escritorio y busca el nuevo acceso directo creado.
+    -   Haz clic derecho sobre él y elige **"Propiedades"**.
+    -   Ve a la pestaña **"Acceso directo"** y pulsa el botón **"Cambiar icono..."**.
+    -   Pulsa **"Examinar..."** y navega hasta la carpeta del proyecto.
+    -   Entra en la carpeta `public` y selecciona el archivo `app-icon.ico` (o `app-icon.png` si Windows te deja verlo, pero el .ico es mejor).
+    -   Pulsa **Aceptar**, **Aplicar** y **Aceptar**.
+
+¡Listo! Ahora tu amigo tendrá un icono profesional de "Divisas App" en su escritorio que abre el programa correctamente sin problemas de `.bat`.
