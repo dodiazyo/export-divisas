@@ -27,35 +27,62 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
     <>
     <style dangerouslySetInnerHTML={{ __html: `
       @media print {
-        @page { size: letter; margin: 20mm; }
-        body { 
+        @page { 
+          size: letter; 
+          margin: 10mm 15mm; 
+        }
+        html, body { 
           background: white !important; 
           color: black !important;
-          margin: 0;
-          padding: 0;
-          width: 100%;
-          font-family: 'Inter', sans-serif;
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          height: auto !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
         .print\\:hidden { display: none !important; }
+        
+        /* Force container to be visible and clear */
         #shift-receipt-content { 
+          display: block !important;
           width: 100% !important; 
           max-width: none !important;
           margin: 0 !important; 
           padding: 0 !important;
           box-shadow: none !important;
           border: none !important;
+          position: relative !important;
+          top: 0 !important;
+          left: 0 !important;
         }
-        .bg-slate-50, .bg-slate-100, .bg-slate-800, .bg-green-50, .bg-blue-50 { 
+
+        /* Adjust colors for ink efficiency */
+        .bg-slate-900, .bg-slate-800 { 
+          background-color: #f8fafc !important; 
+          color: #0f172a !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+        .bg-green-800, .bg-green-900 {
+          background-color: #f0fdf4 !important;
+          color: #166534 !important;
+          border: 1px solid #bbf7d0 !important;
+        }
+        .text-white { color: black !important; }
+        .bg-slate-50, .bg-slate-100, .bg-green-50, .bg-blue-50 { 
           background-color: transparent !important; 
-          border: 1px solid #eee !important;
+          border: 1px solid #f1f5f9 !important;
         }
-        .text-slate-500, .text-slate-600, .text-slate-400 { color: #555 !important; }
-        .shadow-lg, .shadow-2xl { box-shadow: none !important; }
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        .rounded-xl, .rounded-lg { border-radius: 8px !important; }
+        
+        .shadow-lg, .shadow-2xl, .shadow-xl, .shadow-sm { box-shadow: none !important; }
+        .rounded-xl, .rounded-lg, .rounded-2xl { border-radius: 4px !important; }
+        
+        /* Ensure table borders are visible */
+        table { border-collapse: collapse !important; width: 100% !important; }
+        th, td { border: 1px solid #f1f5f9 !important; }
       }
     `}} />
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 print:bg-white print:p-0 print:block">
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 print:hidden sticky top-0 bg-white z-10">
