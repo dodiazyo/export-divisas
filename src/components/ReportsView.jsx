@@ -17,22 +17,23 @@ export default function ReportsView({ salesHistory = [] }) {
 
   // --- CALCULATE METRICS ---
   const metrics = useMemo(() => {
-    const totalUSD = filteredSales.reduce((sum, sale) => sum + (sale.usdAmount || 0), 0);
+    const totalUSD = filteredSales.filter(s => s.currency === 'USD').reduce((sum, sale) => sum + (sale.amount || 0), 0);
+    const totalEUR = filteredSales.filter(s => s.currency === 'EUR').reduce((sum, sale) => sum + (sale.amount || 0), 0);
     const totalDOP = filteredSales.reduce((sum, sale) => sum + (sale.dopAmount || 0), 0);
     const totalGain = filteredSales.reduce((sum, sale) => sum + (sale.gain || 0), 0);
     const transactions = filteredSales.length;
-    const avgRate = totalUSD > 0 ? totalDOP / totalUSD : 0;
     
-    return { totalUSD, totalDOP, totalGain, transactions, avgRate };
+    return { totalUSD, totalEUR, totalDOP, totalGain, transactions };
   }, [filteredSales]);
 
   // --- EXPORT CSV ---
   const handleExport = () => {
-    const headers = ['ID', 'Fecha', 'USD Comprado', 'Tasa', 'DOP Pagado', 'Ganancia (DOP)', 'Cajero'];
+    const headers = ['ID', 'Fecha', 'Moneda', 'Monto', 'Tasa', 'Total DOP', 'Ganancia (DOP)', 'Cajero'];
     const rows = filteredSales.map(sale => [
       sale.id,
       new Date(sale.date).toLocaleString(),
-      sale.usdAmount,
+      sale.currency || 'USD',
+      sale.amount,
       sale.rate,
       sale.dopAmount,
       sale.gain || 0,
@@ -56,13 +57,13 @@ export default function ReportsView({ salesHistory = [] }) {
 
   return (
     <div className="h-full flex flex-col bg-slate-50 p-6 overflow-y-auto">
-      <div className="max-w-5xl mx-auto w-full">
+      <div className="max-w-6xl mx-auto w-full">
         
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Reporte de Divisas</h1>
-            <p className="text-slate-500">Historial de transacciones y movimientos</p>
+            <h1 className="text-2xl font-bold text-slate-800">Historial de Transacciones</h1>
+            <p className="text-slate-500 text-sm">Registro detallado por usuario y moneda</p>
           </div>
         </div>
 
@@ -100,41 +101,30 @@ export default function ReportsView({ salesHistory = [] }) {
           </div>
 
           {/* KPI CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group">
-              <div className="absolute right-0 top-0 w-32 h-32 bg-green-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-110" />
-              <div className="relative z-10">
-                <p className="text-slate-500 text-sm font-medium uppercase tracking-wider">USD Comprados</p>
-                <h3 className="text-3xl font-bold text-slate-800 mt-2">${metrics.totalUSD.toLocaleString()}</h3>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-green-100 flex flex-col">
+              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">USD Comprados</p>
+              <h3 className="text-2xl font-black text-green-700 mt-1">${metrics.totalUSD.toLocaleString()}</h3>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group">
-              <div className="absolute right-0 top-0 w-32 h-32 bg-blue-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-110" />
-              <div className="relative z-10">
-                <p className="text-slate-500 text-sm font-medium uppercase tracking-wider">DOP Pagados</p>
-                <h3 className="text-3xl font-bold text-slate-800 mt-2">RD$ {metrics.totalDOP.toLocaleString(undefined, {minimumFractionDigits: 2})}</h3>
-              </div>
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 flex flex-col">
+              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">EUR Comprados</p>
+              <h3 className="text-2xl font-black text-blue-700 mt-1">€{metrics.totalEUR.toLocaleString()}</h3>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-yellow-200 relative overflow-hidden group">
-              <div className="absolute right-0 top-0 w-32 h-32 bg-yellow-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-110" />
-              <div className="relative z-10">
-                <p className="text-yellow-600 text-sm font-bold uppercase tracking-wider">Ganancia Total</p>
-                <h3 className="text-3xl font-bold text-yellow-700 mt-2">RD$ {metrics.totalGain.toLocaleString(undefined, {minimumFractionDigits: 2})}</h3>
-              </div>
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">DOP Egresado</p>
+              <h3 className="text-2xl font-black text-slate-800 mt-1">RD$ {metrics.totalDOP.toLocaleString(undefined, {maximumFractionDigits: 0})}</h3>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group">
-              <div className="absolute right-0 top-0 w-32 h-32 bg-purple-50 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-110" />
-              <div className="relative z-10">
-                <p className="text-slate-500 text-sm font-medium uppercase tracking-wider">Tasa Promedio</p>
-                <h3 className="text-3xl font-bold text-slate-800 mt-2">{metrics.avgRate.toFixed(2)}</h3>
-                <div className="mt-4 flex items-center gap-1 text-sm text-purple-600 font-medium bg-purple-50 w-fit px-2 py-1 rounded-full">
-                  <TrendingUp size={14} />
-                  <span>{metrics.transactions} transacciones</span>
-                </div>
-              </div>
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-yellow-100 flex flex-col">
+              <p className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider">Ganancia Est.</p>
+              <h3 className="text-2xl font-black text-yellow-700 mt-1">RD$ {metrics.totalGain.toLocaleString(undefined, {maximumFractionDigits: 0})}</h3>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100 flex flex-col">
+              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Operaciones</p>
+              <h3 className="text-2xl font-black text-purple-700 mt-1">{metrics.transactions}</h3>
             </div>
           </div>
 
@@ -142,32 +132,54 @@ export default function ReportsView({ salesHistory = [] }) {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
                   <tr>
-                    <th className="p-4">Fecha</th>
-                    <th className="p-4">USD Comprado</th>
-                    <th className="p-4">Tasa</th>
-                    <th className="p-4">DOP Pagado</th>
-                    <th className="p-4">Ganancia (DOP)</th>
+                    <th className="p-4">Fecha y Hora</th>
                     <th className="p-4">Cajero</th>
+                    <th className="p-4">Moneda</th>
+                    <th className="p-4 text-right">Monto</th>
+                    <th className="p-4 text-center">Tasa</th>
+                    <th className="p-4 text-right">Pagado (DOP)</th>
+                    <th className="p-4 text-right">Ganancia</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredSales.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="p-8 text-center text-slate-400">
+                      <td colSpan="7" className="p-8 text-center text-slate-400">
                         No hay transacciones en este rango
                       </td>
                     </tr>
                   ) : (
                     filteredSales.map(sale => (
-                      <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4 text-slate-600">{new Date(sale.date).toLocaleString()}</td>
-                        <td className="p-4 font-bold text-green-600">${sale.usdAmount}</td>
-                        <td className="p-4 text-slate-600">{sale.rate}</td>
-                        <td className="p-4 font-bold text-slate-800">RD$ {sale.dopAmount.toLocaleString()}</td>
-                        <td className="p-4 font-bold text-yellow-600">RD$ {(sale.gain || 0).toLocaleString()}</td>
-                        <td className="p-4 text-slate-500 text-sm">{sale.cashier}</td>
+                      <tr key={sale.id} className="hover:bg-slate-50 transition-colors group">
+                        <td className="p-4">
+                          <div className="flex flex-col">
+                            <span className="text-slate-700 font-medium">{new Date(sale.date).toLocaleDateString()}</span>
+                            <span className="text-[10px] text-slate-400 uppercase">{new Date(sale.date).toLocaleTimeString()}</span>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                             <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                               {sale.cashier?.charAt(0)}
+                             </div>
+                             <span className="text-sm font-bold text-slate-700">{sale.cashier}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            sale.currency === 'EUR' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                          }`}>
+                            {sale.currency || 'USD'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right font-black text-slate-800">
+                          {sale.currency === 'EUR' ? '€' : '$'}{sale.amount?.toLocaleString()}
+                        </td>
+                        <td className="p-4 text-center text-slate-500 font-mono text-xs">{sale.rate?.toFixed(2)}</td>
+                        <td className="p-4 text-right font-bold text-slate-900">RD$ {sale.dopAmount?.toLocaleString()}</td>
+                        <td className="p-4 text-right font-bold text-yellow-600">RD$ {(sale.gain || 0).toLocaleString()}</td>
                       </tr>
                     ))
                   )}

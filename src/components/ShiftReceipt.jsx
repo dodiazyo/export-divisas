@@ -24,6 +24,35 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
   const storeName = settings?.name || 'COLMADO PRO';
   
   return (
+    <>
+    <style dangerouslySetInnerHTML={{ __html: `
+      @media print {
+        @page { size: 80mm auto; margin: 0; }
+        body { 
+          background: white !important; 
+          color: black !important;
+          margin: 0;
+          padding: 0;
+          width: 80mm;
+        }
+        .print\\:hidden { display: none !important; }
+        #shift-receipt-content { 
+          width: 72mm !important; 
+          margin: 0 auto !important; 
+          padding: 10px 0 !important;
+          box-shadow: none !important;
+          border: none !important;
+        }
+        .bg-slate-50, .bg-slate-100, .bg-slate-800, .bg-green-50, .bg-blue-50 { 
+          background-color: transparent !important; 
+          border: 1px solid #000 !important;
+        }
+        .text-slate-500, .text-slate-600, .text-slate-400 { color: #000 !important; }
+        .shadow-lg, .shadow-2xl { box-shadow: none !important; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .rounded-xl, .rounded-lg { border-radius: 0 !important; }
+      }
+    `}} />
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
@@ -178,6 +207,60 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
               </div>
             )}
           </div>
+
+          {/* Activity by User */}
+          {shift.cashierActivity && Object.keys(shift.cashierActivity).length > 0 && (
+            <div className="mb-6 space-y-2">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-300 pb-1">Desglose por Cajero</h3>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-slate-500 border-b border-slate-100">
+                    <th className="text-left py-1">Nombre</th>
+                    <th className="text-center py-1">Trans.</th>
+                    <th className="text-right py-1">Monto DOP</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {Object.entries(shift.cashierActivity).map(([name, data]) => (
+                    <tr key={name} className="text-slate-700">
+                      <td className="py-2 font-bold">{name}</td>
+                      <td className="py-2 text-center font-mono">{data.transactions}</td>
+                      <td className="py-2 text-right font-mono font-bold">RD$ {data.totalDOP.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Detailed Transaction List */}
+          {shift.transactionsList && shift.transactionsList.length > 0 && (
+            <div className="mb-6 space-y-2">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-300 pb-1">Detalle de Movimientos</h3>
+              <table className="w-full text-[9px]">
+                <thead>
+                  <tr className="text-slate-500 border-b border-slate-100">
+                    <th className="text-left py-1">Hora</th>
+                    <th className="text-left py-1">Cajero</th>
+                    <th className="text-right py-1">Monto</th>
+                    <th className="text-right py-1">Total RD$</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {shift.transactionsList.map((sale) => (
+                    <tr key={sale.id} className="text-slate-700">
+                      <td className="py-1">{new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                      <td className="py-1 font-bold">{sale.cashier?.split(' ')[0]}</td>
+                      <td className="py-1 text-right font-bold">
+                        {sale.currency === 'EUR' ? '€' : '$'}{sale.amount}
+                      </td>
+                      <td className="py-1 text-right font-mono">{(sale.dopAmount || 0).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           
           {/* Stats */}
           <div className="mb-8 grid grid-cols-2 gap-4">
@@ -229,5 +312,6 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
         </div>
       </div>
     </div>
+    </>
   );
 }
