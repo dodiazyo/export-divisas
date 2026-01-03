@@ -37,7 +37,7 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
         }
         .print\\:hidden { display: none !important; }
         #shift-receipt-content { 
-          width: 72mm !important; 
+          width: 64mm !important; 
           margin: 0 auto !important; 
           padding: 10px 0 !important;
           box-shadow: none !important;

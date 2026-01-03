@@ -33,18 +33,35 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
   };
 
   const handleAmountChange = (valRaw) => {
-    // Remove invalid chars
-    const val = valRaw.replace(/[^0-9.]/g, '');
+    // Remove invalid chars (keep only numbers and dot)
+    let val = valRaw.replace(/[^0-9.]/g, '');
+    
     // Prevent multiple dots
     if ((val.match(/\./g) || []).length > 1) return;
+
+    // Limit to 2 decimal places
+    if (val.includes('.')) {
+      const [int, dec] = val.split('.');
+      if (dec && dec.length > 2) {
+        val = `${int}.${dec.substring(0, 2)}`;
+      }
+    }
 
     setAmount(formatNumber(val));
     calculateDifference(val, parseNumber(usdAmount));
   };
 
   const handleUsdAmountChange = (valRaw) => {
-    const val = valRaw.replace(/[^0-9.]/g, '');
+    let val = valRaw.replace(/[^0-9.]/g, '');
     if ((val.match(/\./g) || []).length > 1) return;
+
+    // Limit to 2 decimal places
+    if (val.includes('.')) {
+      const [int, dec] = val.split('.');
+      if (dec && dec.length > 2) {
+        val = `${int}.${dec.substring(0, 2)}`;
+      }
+    }
 
     setUsdAmount(formatNumber(val));
     calculateDifference(parseNumber(amount), val);
@@ -78,8 +95,15 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!amount) return;
+    
     const rawAmount = parseFloat(parseNumber(amount));
     const rawUsd = usdAmount ? parseFloat(parseNumber(usdAmount)) : 0;
+    
+    if (rawAmount < 0 || rawUsd < 0) {
+      alert("Los montos no pueden ser negativos.");
+      return;
+    }
+
     onConfirm(rawAmount, rawUsd);
   };
 

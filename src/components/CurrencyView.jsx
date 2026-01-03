@@ -104,21 +104,6 @@ export default function CurrencyView({ settings, onUpdateSettings, onTransaction
       const symbol = currency === 'USD' ? '$' : '€';
       const currencyName = currency === 'USD' ? 'USD' : 'EUR';
 
-      // Generate Receipt Content
-      const receiptContent = `
-=== COMPRA DE DIVISAS (${currency}) ===
-Fecha: ${new Date().toLocaleString()}
-Tasa: RD$ ${rate.toFixed(2)}
-
-DETALLE BILLETES:
-${Object.entries(bills).filter(([_, c]) => c > 0).sort((a,b) => b[0] - a[0]).map(([d, c]) => `${c} x ${symbol}${d} ${currencyName}`).join('\n')}
-
--------------------------
-TOTAL RECIBIDO: ${symbol}${totalForeign.toFixed(2)} ${currencyName}
-A PAGAR: RD$ ${totalDOP.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
-=========================
-      `;
-      
       const storeName = settings?.name || 'CASA DE CAMBIO';
       const storeRNC = settings?.rnc || '';
       const storePhone = settings?.phone || '';
@@ -127,101 +112,108 @@ A PAGAR: RD$ ${totalDOP.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
 
       // Generate Receipt HTML
       const printWindow = window.open('', '_blank', 'width=450,height=600');
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Recibo - ${storeName}</title>
-            <style>
-              @page { size: 80mm auto; margin: 0; }
-              body { 
-                font-family: 'Courier New', Courier, monospace; 
-                width: 72mm; 
-                margin: 0 auto; 
-                padding: 10px 2mm;
-                color: #000;
-                font-size: 13px;
-                line-height: 1.2;
-              }
-              .text-center { text-align: center; }
-              .text-right { text-align: right; }
-              .font-bold { font-weight: bold; }
-              .header { margin-bottom: 15px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
-              .store-name { font-size: 18px; margin-bottom: 2px; }
-              .divider { border-top: 1px dashed #000; margin: 8px 0; }
-              .item-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
-              .total-section { margin-top: 10px; border-top: 2px solid #000; padding-top: 8px; }
-              .total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 4px; }
-              .footer { margin-top: 20px; font-size: 11px; margin-bottom: 40px; }
-            </style>
-          </head>
-          <body>
-            <div class="header text-center">
-              <div class="store-name font-bold">${storeName}</div>
-              ${storeRNC ? `<div>RNC: ${storeRNC}</div>` : ''}
-              ${storePhone ? `<div>Tel: ${storePhone}</div>` : ''}
-              ${storeAddress ? `<div>${storeAddress}</div>` : ''}
-              <div class="divider"></div>
-              <div class="font-bold">COMPRA DE DIVISAS</div>
-              <div>${new Date().toLocaleString('es-DO')}</div>
-            </div>
-
-            <div class="items">
-              <div class="item-row font-bold">
-                <span>DETALLE</span>
-                <span>CANT</span>
+      
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Recibo - ${storeName}</title>
+              <style>
+                @page { size: 80mm auto; margin: 0; }
+                body { 
+                  font-family: 'Courier New', Courier, monospace; 
+                  width: 64mm; 
+                  margin: 0 auto; 
+                  padding: 20px 0;
+                  color: #000;
+                  font-size: 13px;
+                  line-height: 1.3;
+                }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .font-bold { font-weight: bold; }
+                .header { margin-bottom: 20px; border-bottom: 1px dashed #000; padding-bottom: 15px; }
+                .store-name { font-size: 20px; margin-bottom: 4px; }
+                .divider { border-top: 1px dashed #000; margin: 10px 0; }
+                .item-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+                .total-section { margin-top: 15px; border-top: 2px solid #000; padding-top: 10px; }
+                .total-row { display: flex; justify-content: space-between; font-size: 17px; font-weight: bold; margin-bottom: 5px; }
+                .footer { margin-top: 30px; font-size: 11px; margin-bottom: 50px; }
+              </style>
+            </head>
+            <body>
+              <div class="header text-center">
+                <div class="store-name font-bold">${storeName}</div>
+                ${storeRNC ? `<div>RNC: ${storeRNC}</div>` : ''}
+                ${storePhone ? `<div>Tel: ${storePhone}</div>` : ''}
+                ${storeAddress ? `<div style="font-size: 11px;">${storeAddress}</div>` : ''}
+                <div class="divider"></div>
+                <div class="font-bold">COMPRA DE DIVISAS</div>
+                <div>${new Date().toLocaleString('es-DO')}</div>
               </div>
-              <div class="divider"></div>
-              ${Object.entries(bills)
-                .filter(([_, c]) => c > 0)
-                .sort((a,b) => b[0] - a[0])
-                .map(([d, c]) => `
-                  <div class="item-row">
-                    <span>Billete ${symbol}${d} ${currencyName}</span>
-                    <span>${c}</span>
-                  </div>
-                `).join('')}
-            </div>
 
-            <div class="total-section">
-              <div class="item-row">
-                <span>TASA:</span>
-                <span class="font-bold">RD$ ${rate.toFixed(2)}</span>
+              <div class="items">
+                <div class="item-row font-bold">
+                  <span>DETALLE</span>
+                  <span>CANT</span>
+                </div>
+                <div class="divider"></div>
+                ${Object.entries(bills)
+                  .filter(([_, c]) => c > 0)
+                  .sort((a,b) => b[0] - a[0])
+                  .map(([d, c]) => `
+                    <div class="item-row">
+                      <span>Billete ${symbol}${d} ${currencyName}</span>
+                      <span>${c}</span>
+                    </div>
+                  `).join('')}
               </div>
-              <div class="divider"></div>
-              <div class="total-row">
-                <span>TOTAL ${currency}:</span>
-                <span>${symbol}${totalForeign.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+
+              <div class="total-section">
+                <div class="item-row">
+                  <span>TASA:</span>
+                  <span class="font-bold">RD$ ${rate.toFixed(2)}</span>
+                </div>
+                <div class="divider"></div>
+                <div class="total-row">
+                  <span>TOTAL ${currency}:</span>
+                  <span>${symbol}${totalForeign.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                </div>
+                <div class="total-row">
+                  <span>A PAGAR:</span>
+                  <span>RD$ ${totalDOP.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</span>
+                </div>
               </div>
-              <div class="total-row">
-                <span>A PAGAR:</span>
-                <span>RD$ ${totalDOP.toLocaleString('es-DO', { minimumFractionDigits: 2 })}</span>
+
+              <div class="footer text-center">
+                <div class="font-bold">${footerMsg}</div>
+                <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">*** COPIA DE CLIENTE ***</div>
+                <div style="font-size: 9px; color: #666; margin-top: 5px;">ID: ${Date.now()}</div>
               </div>
-            </div>
 
-            <div class="footer text-center">
-              <div>${footerMsg}</div>
-              <div style="margin-top: 10px;">*** COPIA DE CLIENTE ***</div>
-            </div>
+              <script>
+                window.onload = function() {
+                  setTimeout(() => {
+                    window.print();
+                    window.onafterprint = function() { 
+                      window.close(); 
+                    };
+                  }, 300);
+                }
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      } else {
+        alert("¡Ventana de impresión bloqueada! Por favor permita ventanas emergentes en este sitio.");
+      }
 
-            <script>
-              window.onload = function() {
-                setTimeout(() => {
-                  window.print();
-                  window.onafterprint = function() { window.close(); };
-                }, 500);
-              }
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-
-      // Reset
+      // Reset application state immediately
       const denoms = currency === 'USD' ? denomsUSD : denomsEUR;
       const zeroed = denoms.reduce((acc, d) => ({...acc, [d]: 0}), {});
       setBills(zeroed);
-      alert("Transacción procesada correctamente.");
       
       const lowestDenom = Math.min(...denoms);
       if (inputRefs.current[lowestDenom]) {
