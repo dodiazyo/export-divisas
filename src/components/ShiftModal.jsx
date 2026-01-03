@@ -7,12 +7,21 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
   const [difference, setDifference] = useState(null);
   const [usdDifference, setUsdDifference] = useState(null);
 
+  // Bill breakdown state
+  const denomsDOP = [2000, 1000, 500, 200, 100, 50, 25, 10, 5, 1];
+  const denomsUSD = [100, 50, 20, 10, 5, 1];
+  const [dopBreakdown, setDopBreakdown] = useState({});
+  const [usdBreakdown, setUsdBreakdown] = useState({});
+  const breakdownRefs = useRef({});
+
   useEffect(() => {
     if (isOpen) {
       setAmount('');
       setUsdAmount('');
       setDifference(null);
       setUsdDifference(null);
+      setDopBreakdown(denomsDOP.reduce((acc, d) => ({...acc, [d]: ''}), {}));
+      setUsdBreakdown(denomsUSD.reduce((acc, d) => ({...acc, [d]: ''}), {}));
     }
   }, [isOpen]);
 
@@ -67,6 +76,39 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
     calculateDifference(parseNumber(amount), val);
   };
 
+  const handleCountChange = (currency, denom, qtyRaw) => {
+    const qty = qtyRaw.replace(/[^0-9]/g, '');
+    const isDOP = currency === 'DOP';
+    const setter = isDOP ? setDopBreakdown : setUsdBreakdown;
+    const currentBreakdown = isDOP ? dopBreakdown : usdBreakdown;
+
+    const newBreakdown = { ...currentBreakdown, [denom]: qty };
+    setter(newBreakdown);
+
+    // Recalculate total
+    const total = Object.entries(newBreakdown).reduce((sum, [d, q]) => sum + (parseInt(d) * (parseInt(q) || 0)), 0);
+    
+    if (isDOP) {
+      setAmount(formatNumber(total.toString()));
+      calculateDifference(total.toString(), parseNumber(usdAmount));
+    } else {
+      setUsdAmount(formatNumber(total.toString()));
+      calculateDifference(parseNumber(amount), total.toString());
+    }
+  };
+
+  const handleKeyDown = (e, currency, denom) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const denoms = currency === 'DOP' ? denomsDOP : denomsUSD;
+      const idx = denoms.indexOf(denom);
+      if (idx < denoms.length - 1) {
+        const nextDenom = denoms[idx + 1];
+        breakdownRefs.current[`${currency}-${nextDenom}`]?.focus();
+      }
+    }
+  };
+
   const calculateDifference = (dopVal, usdVal) => {
     if (mode === 'close' && currentShift) {
       // DOP Difference
@@ -104,7 +146,7 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
       return;
     }
 
-    onConfirm(rawAmount, rawUsd);
+    onConfirm(rawAmount, rawUsd, dopBreakdown, usdBreakdown);
   };
 
   if (!isOpen) return null;
@@ -196,6 +238,28 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
             </div>
           </div>
 
+          {/* DOP Breakdown (Only on close) */}
+          {isClose && (
+            <div className="mb-6 grid grid-cols-2 gap-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <h4 className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Desglose Pesos (DOP)</h4>
+              {denomsDOP.map(d => (
+                <div key={`dop-${d}`} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+                  <span className="text-xs font-bold text-slate-400 w-10 text-right">${d}</span>
+                  <input
+                    ref={el => breakdownRefs.current[`DOP-${d}`] = el}
+                    type="text"
+                    inputMode="numeric"
+                    value={dopBreakdown[d] || ''}
+                    onChange={e => handleCountChange('DOP', d, e.target.value)}
+                    onKeyDown={e => handleKeyDown(e, 'DOP', d)}
+                    className="w-full text-right font-bold text-slate-800 outline-none pr-1"
+                    placeholder="0"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* USD Input (Conditional) */}
           {showCurrencyInput && (
             <div className="mb-6 animate-in slide-in-from-top-2">
@@ -213,6 +277,28 @@ export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, c
                   placeholder="0.00"
                 />
               </div>
+            </div>
+          )}
+
+          {/* USD Breakdown (Only on close) */}
+          {isClose && showCurrencyInput && (
+            <div className="mb-6 grid grid-cols-2 gap-2 bg-green-50/50 p-4 rounded-xl border border-green-100">
+              <h4 className="col-span-2 text-[10px] font-black text-green-700/50 uppercase tracking-widest mb-2 text-center">Desglose Dólares (USD)</h4>
+              {denomsUSD.map(d => (
+                <div key={`usd-${d}`} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-green-100 shadow-sm">
+                  <span className="text-xs font-bold text-green-600 w-8 text-right">${d}</span>
+                  <input
+                    ref={el => breakdownRefs.current[`USD-${d}`] = el}
+                    type="text"
+                    inputMode="numeric"
+                    value={usdBreakdown[d] || ''}
+                    onChange={e => handleCountChange('USD', d, e.target.value)}
+                    onKeyDown={e => handleKeyDown(e, 'USD', d)}
+                    className="w-full text-right font-bold text-slate-800 outline-none pr-1"
+                    placeholder="0"
+                  />
+                </div>
+              ))}
             </div>
           )}
 

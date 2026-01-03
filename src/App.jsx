@@ -86,7 +86,7 @@ export default function App() {
   const [showShiftReceipt, setShowShiftReceipt] = useState(false);
   const [lastClosedShift, setLastClosedShift] = useState(null);
 
-  const handleCloseShift = (finalAmount, finalUsdAmount = 0, finalEurAmount = 0) => {
+  const handleCloseShift = (finalAmount, finalUsdAmount = 0, dopBreakdown = {}, usdBreakdown = {}) => {
     // Expected = Start - Payouts (DOP logic)
     // Note: Payouts are in DOP, so Start Amount (DOP) - Payouts (DOP) = Expected Cash (DOP)
     const expectedAmount = (shift.startAmount || 0) - (shift.currencyPayouts || 0);
@@ -98,11 +98,13 @@ export default function App() {
       endTime: new Date().toISOString(),
       finalAmount,
       finalUsdAmount,
-      finalEurAmount,
+      finalEurAmount: expectedEur, // Keeping it simple as we don't have EUR input yet
+      dopBreakdown,
+      usdBreakdown,
       expectedAmount: expectedAmount,
       difference: finalAmount - expectedAmount,
       usdDifference: finalUsdAmount - expectedUsd,
-      eurDifference: finalEurAmount - expectedEur,
+      eurDifference: expectedEur - expectedEur,
       totalGain: shift.totalGain || 0,
       cashierActivity: salesHistory
         .filter(s => s.shiftId === shift.id)
