@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DollarSign, Lock, Save, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export default function ShiftModal({ isOpen, mode, onClose, onConfirm, onSkip, currentShift, showCurrencyInput, canSkip = true }) {
