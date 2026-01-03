@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Download, DollarSign, TrendingUp } from 'lucide-react';
+import { Calendar, Download, FileText, DollarSign, TrendingUp } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function ReportsView({ salesHistory = [] }) {
   const [dateRange, setDateRange] = useState({
@@ -27,7 +29,7 @@ export default function ReportsView({ salesHistory = [] }) {
   }, [filteredSales]);
 
   // --- EXPORT CSV ---
-  const handleExport = () => {
+  const handleExportCSV = () => {
     const headers = ['ID', 'Fecha', 'Moneda', 'Monto', 'Tasa', 'Total DOP', 'Ganancia (DOP)', 'Cajero'];
     const rows = filteredSales.map(sale => [
       sale.id,
@@ -53,6 +55,53 @@ export default function ReportsView({ salesHistory = [] }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // --- EXPORT PDF ---
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(18);
+    doc.text('Reporte de Transacciones - Divisas', 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Rango: ${dateRange.start} al ${dateRange.end}`, 14, 22);
+    
+    // Metrics Summary
+    doc.setFontSize(12);
+    doc.text('Resumen del Periodo:', 14, 32);
+    doc.setFontSize(10);
+    doc.text(`USD Comprados: $${metrics.totalUSD.toLocaleString()}`, 14, 38);
+    doc.text(`EUR Comprados: €${metrics.totalEUR.toLocaleString()}`, 14, 43);
+    doc.text(`Total DOP: RD$ ${metrics.totalDOP.toLocaleString()}`, 14, 48);
+    doc.text(`Operaciones: ${metrics.transactions}`, 14, 53);
+
+    // Table
+    const headers = [['Fecha', 'Cajero', 'Moneda', 'Monto', 'Tasa', 'Pagado (DOP)']];
+    const data = filteredSales.map(sale => [
+      new Date(sale.date).toLocaleString(),
+      sale.cashier,
+      sale.currency || 'USD',
+      `${sale.currency === 'EUR' ? '€' : '$'}${sale.amount.toLocaleString()}`,
+      sale.rate.toFixed(2),
+      `RD$ ${sale.dopAmount.toLocaleString()}`
+    ]);
+
+    autoTable(doc, {
+      startY: 60,
+      head: headers,
+      body: data,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42] },
+      styles: { fontSize: 8 },
+      columnStyles: {
+        3: { halign: 'right' },
+        4: { halign: 'center' },
+        5: { halign: 'right' }
+      }
+    });
+
+    doc.save(`reporte_divisas_${dateRange.start}_${dateRange.end}.pdf`);
   };
 
   return (
@@ -91,13 +140,23 @@ export default function ReportsView({ salesHistory = [] }) {
               </div>
             </div>
             
-            <button 
-              onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-slate-200"
-            >
-              <Download size={16} />
-              Exportar CSV
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleExportCSV}
+                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95"
+              >
+                <Download size={16} className="text-slate-400" />
+                CSV
+              </button>
+              
+              <button 
+                onClick={handleExportPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-all shadow-lg shadow-red-200 active:scale-95"
+              >
+                <FileText size={16} />
+                PDF
+              </button>
+            </div>
           </div>
 
           {/* KPI CARDS */}
