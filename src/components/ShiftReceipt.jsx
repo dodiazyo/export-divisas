@@ -27,7 +27,7 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
     <>
     <style dangerouslySetInnerHTML={{ __html: `
       @media print {
-        @page { size: A4; margin: 20mm; }
+        @page { size: letter; margin: 20mm; }
         body { 
           background: white !important; 
           color: black !important;
@@ -64,7 +64,7 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
               <Lock size={28} className="text-slate-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Cierre de Caja (Formato A4)</h2>
+              <h2 className="text-xl font-bold text-slate-800">Cierre de Caja (Formato Carta)</h2>
               <p className="text-sm text-slate-500">Turno #{shift.id} - Epson L3250</p>
             </div>
           </div>
@@ -305,7 +305,7 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
             className="flex-1 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl transition-all shadow-xl shadow-slate-900/20 flex items-center justify-center gap-2"
           >
             <Printer size={20} />
-            Imprimir en A4 (Epson L3250)
+            Imprimir en Carta (Letter)
           </button>
         </div>
       </div>
