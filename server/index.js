@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,6 +20,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy since Render proxies the traffic
+app.set('trust proxy', 1);
+
+app.use(helmet({
+  contentSecurityPolicy: false, // Disabled just to ensure React SPA loads assets smoothly initially
+}));
 app.use(cors());
 app.use(express.json());
 

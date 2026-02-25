@@ -4,9 +4,17 @@ import jwt from 'jsonwebtoken';
 import pool from '../database.js';
 import { JWT_SECRET } from '../middleware/auth.js';
 
+import rateLimit from 'express-rate-limit';
+
 const router = express.Router();
 
-router.post('/login', async (req, res) => {
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 login requests per `window` (here, per 15 minutes)
+  message: { error: 'Demasiados intentos fallidos. Inténtelo de nuevo en 15 minutos.' }
+});
+
+router.post('/login', loginLimiter, async (req, res) => {
   const { pin } = req.body;
   if (!pin) {
     return res.status(400).json({ error: 'PIN is required' });
