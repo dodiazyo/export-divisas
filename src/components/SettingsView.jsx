@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Building2, Phone, MapPin, FileText, Hash, DollarSign, Download, Upload, AlertTriangle } from 'lucide-react';
+import { Save, Building2, Phone, MapPin, FileText, Hash, DollarSign } from 'lucide-react';
+import { api } from '../lib/api';
 
-export default function SettingsView({ 
-  settings, 
-  onSave,
-  users,
-  setUsers,
-  shiftHistory,
-  setShiftHistory,
-  salesHistory,
-  setSalesHistory
-}) {
+export default function SettingsView({ settings, onSave }) {
   const [formData, setFormData] = useState({
     name: '',
     rnc: '',
@@ -24,6 +16,7 @@ export default function SettingsView({
   });
   
   const [showSuccess, setShowSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -33,75 +26,22 @@ export default function SettingsView({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSave(formData);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
-  };
-
-  // --- BACKUP & RESTORE ---
-  const handleExportData = () => {
-    const data = {
-      timestamp: new Date().toISOString(),
-      version: '1.0',
-      settings: formData,
-      users: users,
-      shiftHistory: shiftHistory,
-      salesHistory: salesHistory
-    };
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `respaldo_divisas_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleImportData = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!window.confirm('ADVERTENCIA: Al restaurar se SOBRESCRIBIRÁN todos los datos actuales. ¿Estás seguro?')) {
-      e.target.value = ''; // Reset input
-      return;
+    setLoading(true);
+    try {
+      const updated = await api.updateSettings(formData);
+      onSave(updated);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      alert('Error guardando configuración: ' + err.message);
+    } finally {
+      setLoading(false);
     }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target.result);
-        
-        // Validate basic structure
-        if (!data.settings || !data.users) {
-          throw new Error('Formato de archivo inválido');
-        }
-
-        // Update State
-        onSave(data.settings);
-        setFormData(data.settings);
-        
-        if (setUsers && data.users) setUsers(data.users);
-        if (setShiftHistory && data.shiftHistory) setShiftHistory(data.shiftHistory);
-        if (setSalesHistory && data.salesHistory) setSalesHistory(data.salesHistory);
-
-        alert('¡Datos restaurados correctamente!');
-      } catch (error) {
-        console.error(error);
-        alert('Error al leer el archivo. Asegúrate de que sea un respaldo válido.');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = ''; // Reset input
   };
 
   return (
@@ -116,7 +56,6 @@ export default function SettingsView({
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-6 space-y-6">
             
-            {/* Exchange Rate - PRIORITY */}
             {/* Exchange Rate - PRIORITY */}
             <div className="bg-green-50 p-6 rounded-xl border border-green-100 grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* USD RATE */}
@@ -302,56 +241,14 @@ export default function SettingsView({
             
             <button
               type="submit"
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
+              disabled={loading}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:shadow-none text-white font-bold rounded-lg shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
             >
               <Save size={20} />
-              Guardar
+              {loading ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </form>
-
-        {/* DATA MANAGEMENT ZONE */}
-        <div className="mt-8 border-t border-slate-200 pt-8">
-          <h3 className="text-sm font-bold text-red-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <AlertTriangle size={16} />
-            Zona de Peligro / Datos
-          </h3>
-          
-          <div className="bg-red-50 rounded-xl p-6 border border-red-100">
-            <p className="text-sm text-red-800 mb-4">
-              Aquí puedes guardar una copia de seguridad de todo el sistema o restaurar datos anteriores.
-              <br/>
-              <span className="font-bold">Nota:</span> Al restaurar se SOBRESCRIBIRÁN los datos actuales.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button
-                type="button"
-                onClick={handleExportData}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-red-200 text-red-700 font-bold rounded-lg hover:bg-red-100 transition-colors shadow-sm"
-              >
-                <Download size={20} />
-                Descargar Copia (Backup)
-              </button>
-
-              <div className="flex-1 relative">
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleImportData}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm"
-                >
-                  <Upload size={20} />
-                  Restaurar Copia
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
 
       </div>
     </div>

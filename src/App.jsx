@@ -8,7 +8,10 @@ import {
   UserCog,
   ShoppingCart,
   PlusCircle,
+  Loader2
 } from 'lucide-react';
+import { api } from './lib/api';
+
 import LoginView from './components/LoginView';
 import ShiftModal from './components/ShiftModal';
 import ReportsView from './components/ReportsView';
@@ -23,122 +26,154 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('currency');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // --- ESTADO GLOBAL ---
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('divisas-user');
-    return saved ? JSON.parse(saved) : null;
-  });
-
-  const [shift, setShift] = useState(() => {
-    const saved = localStorage.getItem('divisas-shift');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [shift, setShift] = useState(null);
+  const [storeSettings, setStoreSettings] = useState(null);
 
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [shiftModalMode, setShiftModalMode] = useState('open');
-
   const [showInjectionModal, setShowInjectionModal] = useState(false);
-
-  // Persistencia
-  useEffect(() => {
-    if (user) localStorage.setItem('divisas-user', JSON.stringify(user));
-    else localStorage.removeItem('divisas-user');
-  }, [user]);
-
-  useEffect(() => {
-    if (shift) localStorage.setItem('divisas-shift', JSON.stringify(shift));
-    else localStorage.removeItem('divisas-shift');
-  }, [shift]);
-
-  useEffect(() => {
-    if (user && !shift) {
-      setShiftModalMode('open');
-      setShowShiftModal(true);
-    }
-  }, [user, shift]);
-
-  // --- HANDLERS ---
-  const handleLogin = (loggedInUser) => {
-    setUser(loggedInUser);
-    setActiveTab('currency');
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setActiveTab('currency');
-  };
-
-  const handleOpenShift = (amount, usdAmount = 0) => {
-    const newShift = {
-      id: Date.now(),
-      userId: user.id,
-      userName: user.name,
-      startTime: new Date().toISOString(),
-      startAmount: amount,
-      usdStartAmount: usdAmount,
-      usdOnHand: usdAmount,
-      eurStartAmount: 0,
-      eurOnHand: 0,
-      currencyPayouts: 0,
-      salesTotal: 0,
-      externalSalesTotal: 0,  // External sales DOP total
-      injections: [],          // Capital injections log
-      transactions: 0,
-      totalGain: 0,
-    };
-    setShift(newShift);
-    setShowShiftModal(false);
-  };
 
   const [showShiftReceipt, setShowShiftReceipt] = useState(false);
   const [lastClosedShift, setLastClosedShift] = useState(null);
 
-  const handleCloseShift = (finalAmount, finalUsdAmount = 0, dopBreakdown = {}, usdBreakdown = {}) => {
-    const totalDOPInjected = (shift.injections || [])
-      .filter(i => i.currency === 'DOP')
-      .reduce((sum, i) => sum + i.amount, 0);
+  // --- INIT DATA ---
+  useEffect(() => {
+    const initApp = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-    const expectedAmount =
-      (shift.startAmount || 0) +
-      totalDOPInjected +
-      (shift.externalSalesTotal || 0) -
-      (shift.currencyPayouts || 0);
+      try {
+        const savedUser = localStorage.getItem('divisas-user');
+        if (savedUser) {
+          setUser(JSON.parse(savedUser));
+        }
 
-    const expectedUsd = shift.usdOnHand || 0;
-    const expectedEur = shift.eurOnHand || 0;
-
-    const closedShift = {
-      ...shift,
-      endTime: new Date().toISOString(),
-      finalAmount,
-      finalUsdAmount,
-      finalEurAmount: expectedEur,
-      dopBreakdown,
-      usdBreakdown,
-      expectedAmount,
-      difference: finalAmount - expectedAmount,
-      usdDifference: finalUsdAmount - expectedUsd,
-      eurDifference: 0,
-      totalGain: shift.totalGain || 0,
-      totalDOPInjected,
-      cashierActivity: salesHistory
-        .filter(s => s.shiftId === shift.id)
-        .reduce((acc, sale) => {
-          const name = sale.cashier || 'Sistema';
-          if (!acc[name]) acc[name] = { totalDOP: 0, transactions: 0 };
-          acc[name].totalDOP += (sale.dopAmount || sale.total || 0);
-          acc[name].transactions += 1;
-          return acc;
-        }, {}),
-      transactionsList: salesHistory.filter(s => s.shiftId === shift.id),
+        const [settingsData, activeShiftData] = await Promise.all([
+          api.getSettings(),
+          api.getActiveShift()
+        ]);
+        
+        setStoreSettings(settingsData);
+        setShift(activeShiftData);
+      } catch (err) {
+        console.error('Failed to init app', err);
+        handleLogout();
+      } finally {
+        setLoading(false);
+      }
     };
+    initApp();
+  }, []);
 
-    setShiftHistory(prev => [closedShift, ...prev]);
+  useEffect(() => {
+    if (user && !loading && !shift && !showShiftReceipt) {
+      setShiftModalMode('open');
+      setShowShiftModal(true);
+    }
+  }, [user, shift, loading, showShiftReceipt]);
+
+  // --- HANDLERS ---
+  const handleLogin = async (loggedInUser, token) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('divisas-user', JSON.stringify(loggedInUser));
+    setUser(loggedInUser);
+    
+    // Fetch initial data after login
+    setLoading(true);
+    try {
+      const [settingsData, activeShiftData] = await Promise.all([
+        api.getSettings(),
+        api.getActiveShift()
+      ]);
+      setStoreSettings(settingsData);
+      setShift(activeShiftData);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setActiveTab('currency');
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
     setShift(null);
-    setShowShiftModal(false);
+    localStorage.removeItem('token');
+    localStorage.removeItem('divisas-user');
+    setActiveTab('currency');
+  };
 
-    setLastClosedShift(closedShift);
-    setShowShiftReceipt(true);
+  const handleOpenShift = async (amount, usdAmount = 0) => {
+    try {
+      const newShiftData = {
+        startTime: new Date().toISOString(),
+        startAmount: amount,
+        usdStartAmount: usdAmount,
+        usdOnHand: usdAmount,
+        eurStartAmount: 0,
+        eurOnHand: 0,
+        currencyPayouts: 0,
+        salesTotal: 0,
+        externalSalesTotal: 0,
+        injections: [],
+        transactions: 0,
+        totalGain: 0,
+      };
+      
+      const res = await api.openShift(newShiftData);
+      setShift(res);
+      setShowShiftModal(false);
+    } catch (err) {
+      alert('Error abriendo turno: ' + err.message);
+    }
+  };
+
+  const handleCloseShift = async (finalAmount, finalUsdAmount = 0, dopBreakdown = {}, usdBreakdown = {}) => {
+    if (!shift) return;
+
+    try {
+      const shiftData = shift.data || {};
+      const totalDOPInjected = (shiftData.injections || [])
+        .filter(i => i.currency === 'DOP')
+        .reduce((sum, i) => sum + i.amount, 0);
+
+      const expectedAmount =
+        (shiftData.startAmount || 0) +
+        totalDOPInjected +
+        (shiftData.externalSalesTotal || 0) -
+        (shiftData.currencyPayouts || 0);
+
+      const expectedUsd = shiftData.usdOnHand || 0;
+      const expectedEur = shiftData.eurOnHand || 0;
+
+      const closedData = {
+        ...shiftData,
+        finalAmount,
+        finalUsdAmount,
+        finalEurAmount: expectedEur,
+        dopBreakdown,
+        usdBreakdown,
+        expectedAmount,
+        difference: finalAmount - expectedAmount,
+        usdDifference: finalUsdAmount - expectedUsd,
+        eurDifference: 0,
+        totalGain: shiftData.totalGain || 0,
+        totalDOPInjected,
+      };
+
+      const res = await api.closeShift(shift.id, closedData);
+      setShift(null);
+      setShowShiftModal(false);
+      setLastClosedShift(res);
+      setShowShiftReceipt(true);
+    } catch (err) {
+      alert('Error cerrando caja: ' + err.message);
+    }
   };
 
   const handleShiftReceiptClose = () => {
@@ -148,150 +183,61 @@ export default function App() {
   };
 
   // --- Capital injection (admin only) ---
-  const handleCapitalInjection = ({ currency, amount, note, adminName }) => {
-    const injection = {
-      id: Date.now(),
-      date: new Date().toISOString(),
-      currency,
-      amount,
-      note,
-      adminName,
-    };
-
-    setShift(prev => {
-      const updates = { injections: [...(prev.injections || []), injection] };
-      if (currency === 'USD') {
-        updates.usdOnHand = (prev.usdOnHand || 0) + amount;
-      }
-      return { ...prev, ...updates };
-    });
-
-    setShowInjectionModal(false);
-    alert(`Inyección de ${currency === 'DOP' ? 'RD$' : '$'}${amount.toLocaleString()} registrada exitosamente.`);
-  };
-
-  // --- SETTINGS ---
-  const [storeSettings, setStoreSettings] = useState(() => {
-    const saved = localStorage.getItem('divisas-settings');
-    const defaultSettings = {
-      name: 'CASA DE CAMBIO',
-      rnc: '000-0000000-0',
-      phone: '(809) 000-0000',
-      address: 'Calle Principal #123',
-      receiptMessage: '¡Gracias por su preferencia!',
-      exchangeRate: 58.50,
-      salesRate: 60.00,
-      exchangeRateEur: 64.00,
-      salesRateEur: 66.00,
-    };
-    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('divisas-settings', JSON.stringify(storeSettings));
-  }, [storeSettings]);
-
-  const handleUpdateSettings = (newSettings) => {
-    setStoreSettings(newSettings);
-  };
-
-  // --- USERS ---
-  const [users, setUsers] = useState(() => {
+  const handleCapitalInjection = async ({ currency, amount, note, adminName }) => {
     try {
-      const saved = localStorage.getItem('divisas-users');
-      const parsed = saved ? JSON.parse(saved) : null;
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    } catch (e) {
-      console.error('Error loading users:', e);
+      const injection = { id: Date.now(), date: new Date().toISOString(), currency, amount, note, adminName };
+      await api.injectCapital(shift.id, injection);
+
+      // Optimistically update shift state
+      setShift(prev => {
+        const pd = prev.data || {};
+        const updates = { injections: [...(pd.injections || []), injection] };
+        if (currency === 'USD') {
+          updates.usdOnHand = (pd.usdOnHand || 0) + amount;
+        }
+        return { ...prev, data: { ...pd, ...updates } };
+      });
+
+      setShowInjectionModal(false);
+      alert(`Inyección de ${currency === 'DOP' ? 'RD$' : '$'}${amount.toLocaleString()} registrada exitosamente.`);
+    } catch (err) {
+      alert('Error registrando inyección: ' + err.message);
     }
-    return [
-      { id: 1, name: 'Admin General', pin: '1234', role: 'admin' },
-      { id: 2, name: 'Agente Divisas', pin: '0000', role: 'currency_agent' },
-    ];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('divisas-users', JSON.stringify(users));
-  }, [users]);
-
-  const handleAddUser = (newUser) => setUsers(prev => [...prev, { ...newUser, id: Date.now() }]);
-  const handleUpdateUser = (updatedUser) => setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-  const handleDeleteUser = (userId) => setUsers(prev => prev.filter(u => u.id !== userId));
-
-  // --- HISTORY ---
-  const [shiftHistory, setShiftHistory] = useState(() => {
-    const saved = localStorage.getItem('divisas-shift-history');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [salesHistory, setSalesHistory] = useState(() => {
-    const saved = localStorage.getItem('divisas-sales-history');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('divisas-shift-history', JSON.stringify(shiftHistory));
-  }, [shiftHistory]);
-
-  useEffect(() => {
-    localStorage.setItem('divisas-sales-history', JSON.stringify(salesHistory));
-  }, [salesHistory]);
+  };
 
   // --- Currency transaction ---
-  const handleCurrencyTransaction = (transactionData) => {
+  const handleCurrencyTransaction = async (transactionData) => {
     if (!shift) {
       alert('Debe abrir la caja para realizar cambios de divisas.');
       return false;
     }
 
     const { amount, dopAmount, breakdown, currency = 'USD', dopBreakdown, rate } = transactionData;
+    const sd = shift.data || {};
 
-    // Available DOP = Start + DOP injections + External sales - Currency payouts
-    const totalDOPInjected = (shift.injections || [])
+    const totalDOPInjected = (sd.injections || [])
       .filter(i => i.currency === 'DOP')
       .reduce((sum, i) => sum + i.amount, 0);
 
     const availableFunds =
-      (shift.startAmount || 0) +
+      (sd.startAmount || 0) +
       totalDOPInjected +
-      (shift.externalSalesTotal || 0) -
-      (shift.currencyPayouts || 0);
+      (sd.externalSalesTotal || 0) -
+      (sd.currencyPayouts || 0);
 
     if (dopAmount > availableFunds) {
-      alert(
-        `⚠️ FONDOS INSUFICIENTES\n\n` +
-        `No tiene suficientes pesos en caja para esta operación.\n\n` +
-        `Disponible: RD$ ${availableFunds.toLocaleString()}\n` +
-        `Requerido:  RD$ ${dopAmount.toLocaleString()}\n` +
-        `Faltante:   RD$ ${(dopAmount - availableFunds).toLocaleString()}`
-      );
+      alert(`⚠️ FONDOS INSUFICIENTES...`);
       return false;
     }
 
     const buyRate = rate;
     const sellRate = currency === 'USD'
-      ? (storeSettings.salesRate || buyRate + 1.5)
-      : (storeSettings.salesRateEur || buyRate + 2.0);
+      ? (storeSettings?.salesRate || buyRate + 1.5)
+      : (storeSettings?.salesRateEur || buyRate + 2.0);
     const totalGain = (sellRate - buyRate) * amount;
 
-    setShift(prev => {
-      const updates = {
-        currencyPayouts: (prev.currencyPayouts || 0) + dopAmount,
-        transactions: prev.transactions + 1,
-        totalGain: (prev.totalGain || 0) + totalGain,
-      };
-      if (currency === 'EUR') {
-        updates.eurOnHand = (prev.eurOnHand || 0) + amount;
-      } else {
-        updates.usdOnHand = (prev.usdOnHand || 0) + amount;
-      }
-      return { ...prev, ...updates };
-    });
-
     const record = {
-      id: Date.now(),
       date: new Date().toISOString(),
-      type: 'exchange',
       currency,
       amount,
       dopAmount,
@@ -300,43 +246,61 @@ export default function App() {
       gain: totalGain,
       breakdown,
       dopBreakdown,
-      shiftId: shift.id,
       cashier: user.name,
     };
 
-    setSalesHistory(prev => [record, ...prev]);
-    return true;
+    try {
+      await api.registerTransaction(shift.id, 'exchange', record);
+
+      // Fetch the updated shift to sync DB accurately
+      const activeShift = await api.getActiveShift();
+      setShift(activeShift);
+      return true;
+    } catch (err) {
+      alert('Error procesando transacción: ' + err.message);
+      return false;
+    }
   };
 
   // --- External sale ---
-  const handleExternalSale = ({ items, total }) => {
+  const handleExternalSale = async ({ items, total }) => {
     if (!shift) return;
 
-    setShift(prev => ({
-      ...prev,
-      externalSalesTotal: (prev.externalSalesTotal || 0) + total,
-      transactions: prev.transactions + 1,
-    }));
-
     const record = {
-      id: Date.now(),
       date: new Date().toISOString(),
-      type: 'external_sale',
       items,
       total,
-      shiftId: shift.id,
       cashier: user.name,
     };
 
-    setSalesHistory(prev => [record, ...prev]);
+    try {
+      await api.registerTransaction(shift.id, 'external_sale', record);
+      
+      const activeShift = await api.getActiveShift();
+      setShift(activeShift);
+    } catch (err) {
+      alert('Error guardando venta: ' + err.message);
+    }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white">
+        <Loader2 className="animate-spin mb-4" size={48} />
+        <p className="tracking-widest font-bold">CARGANDO SISTEMA...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView onLogin={handleLogin} />;
+  }
+
   // --- Computed available DOP (for sidebar display) ---
-  const totalDOPInjected = shift
-    ? (shift.injections || []).filter(i => i.currency === 'DOP').reduce((sum, i) => sum + i.amount, 0)
-    : 0;
+  const sd = shift?.data || {};
+  const totalDOPInjected = (sd.injections || []).filter(i => i.currency === 'DOP').reduce((sum, i) => sum + i.amount, 0);
   const availableDOP = shift
-    ? (shift.startAmount || 0) + totalDOPInjected + (shift.externalSalesTotal || 0) - (shift.currencyPayouts || 0)
+    ? (sd.startAmount || 0) + totalDOPInjected + (sd.externalSalesTotal || 0) - (sd.currencyPayouts || 0)
     : 0;
 
   // --- Menu ---
@@ -347,10 +311,6 @@ export default function App() {
     { id: 'users', label: 'Usuarios', icon: UserCog, roles: ['admin'] },
     { id: 'settings', label: 'Configuración', icon: Settings, roles: ['admin'] },
   ].filter(item => user && item.roles.includes(user.role));
-
-  if (!user) {
-    return <LoginView onLogin={handleLogin} settings={storeSettings} users={users} />;
-  }
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 font-sans overflow-hidden">
@@ -367,7 +327,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="font-bold text-lg tracking-tight">DIVISAS<span className="text-green-500">APP</span></h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">v2.0</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">v3.0</p>
           </div>
         </div>
 
@@ -412,12 +372,12 @@ export default function App() {
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-400">USD en caja</span>
                 <span className="font-bold text-green-400 text-sm">
-                  ${(shift.usdOnHand || 0).toLocaleString()}
+                  ${(sd.usdOnHand || 0).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-400">Operaciones</span>
-                <span className="text-xs text-slate-500">{shift.transactions}</span>
+                <span className="text-xs text-slate-500">{sd.transactions || 0}</span>
               </div>
             </div>
           )}
@@ -484,8 +444,7 @@ export default function App() {
 
             {activeTab === 'currency' && (
               <CurrencyView
-                settings={storeSettings}
-                onUpdateSettings={handleUpdateSettings}
+                settings={storeSettings || {}}
                 onTransaction={handleCurrencyTransaction}
               />
             )}
@@ -494,37 +453,23 @@ export default function App() {
               <CashRegisterView
                 onSale={handleExternalSale}
                 shift={shift}
-                settings={storeSettings}
+                settings={storeSettings || {}}
               />
             )}
 
             {activeTab === 'reports' && (
-              <ReportsView
-                shiftHistory={shiftHistory}
-                salesHistory={salesHistory}
-              />
+              <ReportsView />
             )}
 
             {activeTab === 'settings' && (
               <SettingsView
-                settings={storeSettings}
-                onSave={handleUpdateSettings}
-                users={users}
-                setUsers={setUsers}
-                shiftHistory={shiftHistory}
-                setShiftHistory={setShiftHistory}
-                salesHistory={salesHistory}
-                setSalesHistory={setSalesHistory}
+                settings={storeSettings || {}}
+                onSave={setStoreSettings}
               />
             )}
 
             {activeTab === 'users' && (
-              <UsersView
-                users={users}
-                onAddUser={handleAddUser}
-                onUpdateUser={handleUpdateUser}
-                onDeleteUser={handleDeleteUser}
-              />
+              <UsersView />
             )}
 
           </div>
@@ -546,7 +491,7 @@ export default function App() {
         onConfirm={shiftModalMode === 'open' ? handleOpenShift : handleCloseShift}
         onSkip={() => handleOpenShift(0, 0)}
         canSkip={user?.role === 'admin'}
-        currentShift={shift}
+        currentShift={shift?.data || null}
         showCurrencyInput={true}
       />
 
@@ -554,7 +499,7 @@ export default function App() {
         isOpen={showShiftReceipt}
         onClose={handleShiftReceiptClose}
         shift={lastClosedShift}
-        settings={storeSettings}
+        settings={storeSettings || {}}
       />
 
       <CapitalInjectionModal

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Lock, Delete, ArrowRight, DollarSign } from 'lucide-react';
+import { Delete, ArrowRight, DollarSign } from 'lucide-react';
+import { api } from '../lib/api';
 
-export default function LoginView({ onLogin, settings, users = [] }) {
+export default function LoginView({ onLogin }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-
-  const storeName = settings?.name || 'CASA DE CAMBIO';
+  const [loading, setLoading] = useState(false);
 
   const handleNumberClick = (num) => {
     setPin(prev => prev + num);
@@ -19,40 +19,17 @@ export default function LoginView({ onLogin, settings, users = [] }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!pin) return;
     
-    // Asynchronous verification
-    let foundUser = null;
-    // We iterate to find the matching user
-    // Note: In a real backend we would send username/pass. Here we try to match the "pin/password" against all users
-    // which effectively means the password acts as the identifier too unless we ask for username.
-    // The current app design implies "PIN is the ID". 
-    // If multiple users have same password, this finds the first one. 
-    // Ideally we should ask for User selection first, but based on current UI (only PIN entry), this is the flow.
-    
-    // However, trying to match a password against ALL users is slow if many users (bcrypt).
-    // But we likely have very few users (Local App).
-    
+    setLoading(true);
     try {
-      const { verifyPassword } = await import('../utils/auth');
-      
-      for (const u of users) {
-        // u.pin is now storing either plain text or hash
-        const isValid = await verifyPassword(pin, u.pin);
-        if (isValid) {
-          foundUser = u;
-          break;
-        }
-      }
-
-      if (foundUser) {
-        onLogin(foundUser);
-      } else {
-        setError('Contraseña Incorrecta');
-        setPin('');
-      }
+      const res = await api.login(pin);
+      onLogin(res.user, res.token);
     } catch (err) {
-      console.error(err);
-      setError('Error de autenticación');
+      setError(err.message || 'Contraseña Incorrecta');
+      setPin('');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -65,8 +42,8 @@ export default function LoginView({ onLogin, settings, users = [] }) {
           <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
             <DollarSign size={40} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1 uppercase">{storeName}</h1>
-          <p className="text-green-100 text-sm">Sistema de Gestión de Divisas</p>
+          <h1 className="text-2xl font-bold text-white mb-1 uppercase">SISTEMA</h1>
+          <p className="text-green-100 text-sm">Gestión de Divisas</p>
         </div>
 
         {/* PIN Input */}
@@ -85,6 +62,7 @@ export default function LoginView({ onLogin, settings, users = [] }) {
                 className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-green-500 outline-none text-center text-2xl tracking-widest text-slate-800 bg-slate-50 transition-all shadow-inner mb-2"
                 placeholder="****"
                 autoFocus
+                disabled={loading}
               />
               
               {error && (
@@ -95,19 +73,20 @@ export default function LoginView({ onLogin, settings, users = [] }) {
             </div>
 
             {/* Keypad */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-3 gap-4 mb-6 relative">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                 <button
                   key={num}
                   type="button"
+                  disabled={loading}
                   onClick={() => handleNumberClick(num.toString())}
-                  className="w-full h-14 rounded-lg border border-slate-200 shadow-sm font-mono text-xl font-medium text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 transition-all active:scale-95"
+                  className="w-full h-14 rounded-lg border border-slate-200 shadow-sm font-mono text-xl font-medium text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 transition-all active:scale-95 disabled:opacity-50"
                 >
                   {num}
                 </button>
               ))}
               <div className="flex items-center justify-center">
-                {pin.length > 0 && (
+                {pin.length > 0 && !loading && (
                   <button
                     type="button"
                     onClick={() => setPin('')}
@@ -119,15 +98,17 @@ export default function LoginView({ onLogin, settings, users = [] }) {
               </div>
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => handleNumberClick('0')}
-                className="h-14 rounded-lg bg-white hover:bg-slate-50 text-xl font-medium text-slate-700 transition-all active:scale-95 shadow-sm border border-slate-200"
+                className="h-14 rounded-lg bg-white hover:bg-slate-50 text-xl font-medium text-slate-700 transition-all active:scale-95 shadow-sm border border-slate-200 disabled:opacity-50"
               >
                 0
               </button>
               <button
                 type="button"
+                disabled={loading}
                 onClick={handleDelete}
-                className="h-14 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-500 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-red-100"
+                className="h-14 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-500 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-red-100 disabled:opacity-50"
               >
                 <Delete size={20} />
               </button>
@@ -135,10 +116,11 @@ export default function LoginView({ onLogin, settings, users = [] }) {
 
             <button
               type="submit"
+              disabled={loading || !pin}
               className="w-full py-4 bg-green-600 hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-200 disabled:shadow-none flex items-center justify-center gap-2"
             >
-              Ingresar
-              <ArrowRight size={20} />
+              {loading ? 'Ingresando...' : 'Ingresar'}
+              {!loading && <ArrowRight size={20} />}
             </button>
           </form>
         </div>

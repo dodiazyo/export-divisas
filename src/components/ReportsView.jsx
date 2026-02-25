@@ -1,21 +1,48 @@
-import React, { useState, useMemo } from 'react';
-import { Calendar, Download, FileText, DollarSign, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar, Download, FileText, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { api } from '../lib/api';
 
-export default function ReportsView({ salesHistory = [] }) {
+export default function ReportsView() {
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
   });
 
+  const [salesHistory, setSalesHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchTransactions();
+    // eslint-disable-next-line
+  }, [dateRange]);
+
+  const fetchTransactions = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getTransactions(dateRange.start, dateRange.end);
+      
+      const formatted = data.map(d => ({
+        id: d.id,
+        shiftId: d.shift_id,
+        type: d.type,
+        date: d.date,
+        ...d.data
+      }));
+
+      setSalesHistory(formatted);
+    } catch (err) {
+      alert('Error cargando transacciones: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // --- FILTER DATA ---
   const filteredSales = useMemo(() => {
-    return salesHistory.filter(sale => {
-      const saleDate = sale.date.split('T')[0];
-      return saleDate >= dateRange.start && saleDate <= dateRange.end && sale.type === 'exchange';
-    });
-  }, [salesHistory, dateRange]);
+    return salesHistory.filter(sale => sale.type === 'exchange');
+  }, [salesHistory]);
 
   // --- CALCULATE METRICS ---
   const metrics = useMemo(() => {
@@ -83,8 +110,8 @@ export default function ReportsView({ salesHistory = [] }) {
       sale.cashier,
       sale.currency || 'USD',
       `${sale.currency === 'EUR' ? '€' : '$'}${sale.amount.toLocaleString()}`,
-      sale.rate.toFixed(2),
-      `RD$ ${sale.dopAmount.toLocaleString()}`
+      sale.rate?.toFixed(2) || '0.00',
+      `RD$ ${sale.dopAmount?.toLocaleString() || 0}`
     ]);
 
     autoTable(doc, {
@@ -116,7 +143,7 @@ export default function ReportsView({ salesHistory = [] }) {
           </div>
         </div>
 
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6">
           {/* FILTERS TOOLBAR */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
             <div className="flex items-center gap-4 flex-wrap">
@@ -159,93 +186,99 @@ export default function ReportsView({ salesHistory = [] }) {
             </div>
           </div>
 
-          {/* KPI CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-green-100 flex flex-col">
-              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">USD Comprados</p>
-              <h3 className="text-2xl font-black text-green-700 mt-1">${metrics.totalUSD.toLocaleString()}</h3>
-            </div>
+          {loading ? (
+             <div className="flex justify-center p-10"><Loader2 className="animate-spin text-slate-400" size={32} /></div>
+          ) : (
+            <>
+              {/* KPI CARDS */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-green-100 flex flex-col">
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">USD Comprados</p>
+                  <h3 className="text-2xl font-black text-green-700 mt-1">${metrics.totalUSD.toLocaleString()}</h3>
+                </div>
 
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 flex flex-col">
-              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">EUR Comprados</p>
-              <h3 className="text-2xl font-black text-blue-700 mt-1">€{metrics.totalEUR.toLocaleString()}</h3>
-            </div>
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 flex flex-col">
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">EUR Comprados</p>
+                  <h3 className="text-2xl font-black text-blue-700 mt-1">€{metrics.totalEUR.toLocaleString()}</h3>
+                </div>
 
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
-              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">DOP Egresado</p>
-              <h3 className="text-2xl font-black text-slate-800 mt-1">RD$ {metrics.totalDOP.toLocaleString(undefined, {maximumFractionDigits: 0})}</h3>
-            </div>
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">DOP Egresado</p>
+                  <h3 className="text-2xl font-black text-slate-800 mt-1">RD$ {metrics.totalDOP.toLocaleString(undefined, {maximumFractionDigits: 0})}</h3>
+                </div>
 
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-yellow-100 flex flex-col">
-              <p className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider">Ganancia Est.</p>
-              <h3 className="text-2xl font-black text-yellow-700 mt-1">RD$ {metrics.totalGain.toLocaleString(undefined, {maximumFractionDigits: 0})}</h3>
-            </div>
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-yellow-100 flex flex-col">
+                  <p className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider">Ganancia Est.</p>
+                  <h3 className="text-2xl font-black text-yellow-700 mt-1">RD$ {metrics.totalGain.toLocaleString(undefined, {maximumFractionDigits: 0})}</h3>
+                </div>
 
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100 flex flex-col">
-              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Operaciones</p>
-              <h3 className="text-2xl font-black text-purple-700 mt-1">{metrics.transactions}</h3>
-            </div>
-          </div>
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100 flex flex-col">
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Operaciones</p>
+                  <h3 className="text-2xl font-black text-purple-700 mt-1">{metrics.transactions}</h3>
+                </div>
+              </div>
 
-          {/* TABLE */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
-                  <tr>
-                    <th className="p-4">Fecha y Hora</th>
-                    <th className="p-4">Cajero</th>
-                    <th className="p-4">Moneda</th>
-                    <th className="p-4 text-right">Monto</th>
-                    <th className="p-4 text-center">Tasa</th>
-                    <th className="p-4 text-right">Pagado (DOP)</th>
-                    <th className="p-4 text-right">Ganancia</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredSales.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" className="p-8 text-center text-slate-400">
-                        No hay transacciones en este rango
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredSales.map(sale => (
-                      <tr key={sale.id} className="hover:bg-slate-50 transition-colors group">
-                        <td className="p-4">
-                          <div className="flex flex-col">
-                            <span className="text-slate-700 font-medium">{new Date(sale.date).toLocaleDateString()}</span>
-                            <span className="text-[10px] text-slate-400 uppercase">{new Date(sale.date).toLocaleTimeString()}</span>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                             <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
-                               {sale.cashier?.charAt(0)}
-                             </div>
-                             <span className="text-sm font-bold text-slate-700">{sale.cashier}</span>
-                          </div>
-                        </td>
-                        <td className="p-4 text-center">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            sale.currency === 'EUR' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                          }`}>
-                            {sale.currency || 'USD'}
-                          </span>
-                        </td>
-                        <td className="p-4 text-right font-black text-slate-800">
-                          {sale.currency === 'EUR' ? '€' : '$'}{sale.amount?.toLocaleString()}
-                        </td>
-                        <td className="p-4 text-center text-slate-500 font-mono text-xs">{sale.rate?.toFixed(2)}</td>
-                        <td className="p-4 text-right font-bold text-slate-900">RD$ {sale.dopAmount?.toLocaleString()}</td>
-                        <td className="p-4 text-right font-bold text-yellow-600">RD$ {(sale.gain || 0).toLocaleString()}</td>
+              {/* TABLE */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
+                      <tr>
+                        <th className="p-4">Fecha y Hora</th>
+                        <th className="p-4">Cajero</th>
+                        <th className="p-4">Moneda</th>
+                        <th className="p-4 text-right">Monto</th>
+                        <th className="p-4 text-center">Tasa</th>
+                        <th className="p-4 text-right">Pagado (DOP)</th>
+                        <th className="p-4 text-right">Ganancia</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredSales.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="p-8 text-center text-slate-400">
+                            No hay transacciones en este rango
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredSales.map(sale => (
+                          <tr key={sale.id} className="hover:bg-slate-50 transition-colors group">
+                            <td className="p-4">
+                              <div className="flex flex-col">
+                                <span className="text-slate-700 font-medium">{new Date(sale.date).toLocaleDateString()}</span>
+                                <span className="text-[10px] text-slate-400 uppercase">{new Date(sale.date).toLocaleTimeString()}</span>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                                  {sale.cashier?.charAt(0)}
+                                </div>
+                                <span className="text-sm font-bold text-slate-700">{sale.cashier}</span>
+                              </div>
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                sale.currency === 'EUR' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                              }`}>
+                                {sale.currency || 'USD'}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right font-black text-slate-800">
+                              {sale.currency === 'EUR' ? '€' : '$'}{sale.amount?.toLocaleString()}
+                            </td>
+                            <td className="p-4 text-center text-slate-500 font-mono text-xs">{sale.rate?.toFixed(2)}</td>
+                            <td className="p-4 text-right font-bold text-slate-900">RD$ {sale.dopAmount?.toLocaleString()}</td>
+                            <td className="p-4 text-right font-bold text-yellow-600">RD$ {(sale.gain || 0).toLocaleString()}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

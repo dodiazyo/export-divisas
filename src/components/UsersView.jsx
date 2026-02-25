@@ -1,25 +1,42 @@
-import React, { useState } from 'react';
-import { hashPassword } from '../utils/auth';
-import { User, Plus, Edit, Trash2, Save, X, Shield, ShieldCheck, Truck, Package } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Plus, Edit, Trash2, Save, X, Shield, ShieldCheck, Truck, Package, Loader2 } from 'lucide-react';
+import { api } from '../lib/api';
 
-export default function UsersView({ users, onAddUser, onUpdateUser, onDeleteUser }) {
+export default function UsersView() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const [isEditing, setIsEditing] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     pin: '',
-    role: 'cashier',
-    permissions: []
+    role: 'currency_agent',
   });
 
   const roles = [
     { id: 'admin', label: 'Administrador', icon: ShieldCheck, color: 'text-red-600' },
-    { id: 'cashier', label: 'Cajero/a', icon: User, color: 'text-blue-600' },
-    { id: 'warehouse', label: 'Almacén', icon: Package, color: 'text-orange-600' },
+    { id: 'currency_agent', label: 'Cajero/a', icon: User, color: 'text-blue-600' },
   ];
 
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getUsers();
+      setUsers(data);
+    } catch (err) {
+      alert('Error cargando usuarios: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddNew = () => {
-    setFormData({ name: '', pin: '', role: 'cashier' });
+    setFormData({ name: '', pin: '', role: 'currency_agent' });
     setCurrentUser(null);
     setIsEditing(true);
   };
@@ -30,38 +47,45 @@ export default function UsersView({ users, onAddUser, onUpdateUser, onDeleteUser
     setIsEditing(true);
   };
 
-  const handleDelete = (userId) => {
+  const handleDelete = async (userId) => {
     if (window.confirm('¿Estás seguro de eliminar este usuario?')) {
-      onDeleteUser(userId);
+      try {
+        await api.deleteUser(userId);
+        fetchUsers();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation for new user
     if (!currentUser && !formData.pin) {
       alert('La contraseña es requerida');
       return;
     }
 
-    let finalPin = currentUser?.pin;
-    if (formData.pin) {
-      finalPin = await hashPassword(formData.pin);
+    try {
+      if (currentUser) {
+        await api.updateUser(currentUser.id, formData);
+      } else {
+        await api.createUser(formData);
+      }
+      setIsEditing(false);
+      fetchUsers();
+    } catch (err) {
+      alert('Error guardando usuario: ' + err.message);
     }
-
-    const userToSave = {
-      ...formData,
-      pin: finalPin
-    };
-
-    if (currentUser) {
-      onUpdateUser({ ...currentUser, ...userToSave });
-    } else {
-      onAddUser(userToSave);
-    }
-    setIsEditing(false);
   };
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center text-slate-500">
+        <Loader2 className="animate-spin" size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-slate-50 p-6 overflow-y-auto">
