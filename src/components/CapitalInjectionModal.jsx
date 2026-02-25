@@ -1,18 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Loader2 } from 'lucide-react';
+import { api } from '../lib/api';
 
-export default function CapitalInjectionModal({ isOpen, onClose, onConfirm, adminName }) {
+export default function CapitalInjectionModal({ isOpen, onClose, onConfirm, adminName, myShiftId }) {
   const [currency, setCurrency] = useState('DOP');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  
+  const [activeShifts, setActiveShifts] = useState([]);
+  const [selectedShiftId, setSelectedShiftId] = useState('');
+  const [loadingShifts, setLoadingShifts] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setAmount('');
       setNote('');
       setCurrency('DOP');
+      setSelectedShiftId(myShiftId || '');
+      fetchActiveShifts();
     }
-  }, [isOpen]);
+  }, [isOpen, myShiftId]);
+
+  const fetchActiveShifts = async () => {
+    setLoadingShifts(true);
+    try {
+      const shifts = await api.getActiveShifts();
+      setActiveShifts(shifts);
+      
+      // If no myShiftId is set, default to the first available shift
+      if (!myShiftId && shifts.length > 0) {
+        setSelectedShiftId(shifts[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load active shifts', err);
+    } finally {
+      setLoadingShifts(false);
+    }
+  };
 
   const formatAmt = (val) => {
     const raw = val.replace(/[^0-9.]/g, '');
@@ -24,12 +48,25 @@ export default function CapitalInjectionModal({ isOpen, onClose, onConfirm, admi
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!selectedShiftId) {
+      alert('Debe seleccionar la caja destino.');
+      return;
+    }
+
     const raw = parseFloat((amount || '').replace(/,/g, ''));
     if (!raw || raw <= 0) {
       alert('Ingrese un monto válido mayor a cero.');
       return;
     }
-    onConfirm({ currency, amount: raw, note: note.trim(), adminName });
+    
+    onConfirm({ 
+      shiftId: selectedShiftId,
+      currency, 
+      amount: raw, 
+      note: note.trim(), 
+      adminName 
+    });
+    
     setAmount('');
     setNote('');
     setCurrency('DOP');
@@ -50,6 +87,36 @@ export default function CapitalInjectionModal({ isOpen, onClose, onConfirm, admi
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+          {/* Target Shift Selector */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+              Caja Destino
+            </label>
+            {loadingShifts ? (
+              <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <Loader2 className="animate-spin" size={16} /> Cargando cajas...
+              </div>
+            ) : activeShifts.length === 0 ? (
+              <div className="text-sm font-medium text-red-500 bg-red-50 p-3 rounded-xl border border-red-100">
+                No hay cajas abiertas en este momento.
+              </div>
+            ) : (
+              <select
+                required
+                value={selectedShiftId}
+                onChange={(e) => setSelectedShiftId(e.target.value)}
+                className="w-full text-sm font-bold p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 bg-white"
+              >
+                <option value="" disabled>-- Seleccione Caja --</option>
+                {activeShifts.map(s => (
+                  <option key={s.id} value={s.id}>
+                    Caja #{s.id} - {s.user_name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Moneda</label>
@@ -114,7 +181,8 @@ export default function CapitalInjectionModal({ isOpen, onClose, onConfirm, admi
             </button>
             <button
               type="submit"
-              className="flex-[2] py-3 rounded-xl font-black text-white bg-indigo-700 hover:bg-indigo-600 shadow-lg transition-all active:scale-95"
+              disabled={activeShifts.length === 0}
+              className="flex-[2] py-3 rounded-xl font-black text-white bg-indigo-700 hover:bg-indigo-600 shadow-lg disabled:opacity-50 disabled:shadow-none transition-all active:scale-95"
             >
               Confirmar Inyección
             </button>

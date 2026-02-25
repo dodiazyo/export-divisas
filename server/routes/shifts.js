@@ -19,6 +19,18 @@ router.get('/active', async (req, res) => {
   }
 });
 
+// Admin: Get all currently open shifts
+router.get('/active-all', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, user_id, user_name, start_time, data FROM shifts WHERE status = 'open' ORDER BY start_time DESC"
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Admin: Get all shifts history
 router.get('/', requireAdmin, async (req, res) => {
   try {

@@ -183,20 +183,22 @@ export default function App() {
   };
 
   // --- Capital injection (admin only) ---
-  const handleCapitalInjection = async ({ currency, amount, note, adminName }) => {
+  const handleCapitalInjection = async ({ shiftId, currency, amount, note, adminName }) => {
     try {
       const injection = { id: Date.now(), date: new Date().toISOString(), currency, amount, note, adminName };
-      await api.injectCapital(shift.id, injection);
+      await api.injectCapital(shiftId, injection);
 
-      // Optimistically update shift state
-      setShift(prev => {
-        const pd = prev.data || {};
-        const updates = { injections: [...(pd.injections || []), injection] };
-        if (currency === 'USD') {
-          updates.usdOnHand = (pd.usdOnHand || 0) + amount;
-        }
-        return { ...prev, data: { ...pd, ...updates } };
-      });
+      // Optimistically update shift state ONLY IF the injection was for the admin's currently open shift
+      if (shift && shift.id === shiftId) {
+        setShift(prev => {
+          const pd = prev.data || {};
+          const updates = { injections: [...(pd.injections || []), injection] };
+          if (currency === 'USD') {
+            updates.usdOnHand = (pd.usdOnHand || 0) + amount;
+          }
+          return { ...prev, data: { ...pd, ...updates } };
+        });
+      }
 
       setShowInjectionModal(false);
       alert(`Inyección de ${currency === 'DOP' ? 'RD$' : '$'}${amount.toLocaleString()} registrada exitosamente.`);
@@ -383,7 +385,7 @@ export default function App() {
           )}
 
           {/* Injection button — admin only */}
-          {user?.role === 'admin' && shift && (
+          {user?.role === 'admin' && (
             <button
               onClick={() => setShowInjectionModal(true)}
               className="w-full py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-black rounded-lg transition-colors flex items-center justify-center gap-1.5 active:scale-95"
@@ -507,6 +509,7 @@ export default function App() {
         onClose={() => setShowInjectionModal(false)}
         onConfirm={handleCapitalInjection}
         adminName={user?.name}
+        myShiftId={shift?.id}
       />
     </div>
   );

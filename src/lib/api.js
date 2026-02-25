@@ -72,6 +72,12 @@ export const api = {
     if (!res.ok) throw new Error('Failed to fetch active shift');
     return res.json();
   },
+  
+  getActiveShifts: async () => {
+    const res = await fetch(`${API_URL}/shifts/active-all`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch active shifts');
+    return res.json();
+  },
   openShift: async (data) => {
     const res = await fetch(`${API_URL}/shifts`, {
       method: 'POST',
