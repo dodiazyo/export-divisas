@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Menu, 
+import {
+  Menu,
   LogOut,
   DollarSign,
   BarChart3,
   Settings,
-  UserCog
+  UserCog,
+  ShoppingCart,
+  PlusCircle,
 } from 'lucide-react';
 import LoginView from './components/LoginView';
 import ShiftModal from './components/ShiftModal';
@@ -14,6 +16,8 @@ import SettingsView from './components/SettingsView';
 import UsersView from './components/UsersView';
 import ShiftReceipt from './components/ShiftReceipt';
 import CurrencyView from './components/CurrencyView';
+import CapitalInjectionModal from './components/CapitalInjectionModal';
+import CashRegisterView from './components/CashRegisterView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('currency');
@@ -31,7 +35,9 @@ export default function App() {
   });
 
   const [showShiftModal, setShowShiftModal] = useState(false);
-  const [shiftModalMode, setShiftModalMode] = useState('open'); 
+  const [shiftModalMode, setShiftModalMode] = useState('open');
+
+  const [showInjectionModal, setShowInjectionModal] = useState(false);
 
   // Persistencia
   useEffect(() => {
@@ -44,7 +50,6 @@ export default function App() {
     else localStorage.removeItem('divisas-shift');
   }, [shift]);
 
-  // Check for open shift on login
   useEffect(() => {
     if (user && !shift) {
       setShiftModalMode('open');
@@ -75,9 +80,11 @@ export default function App() {
       eurStartAmount: 0,
       eurOnHand: 0,
       currencyPayouts: 0,
-      salesTotal: 0, // Not used but kept for compatibility
+      salesTotal: 0,
+      externalSalesTotal: 0,  // External sales DOP total
+      injections: [],          // Capital injections log
       transactions: 0,
-      totalGain: 0
+      totalGain: 0,
     };
     setShift(newShift);
     setShowShiftModal(false);
@@ -87,41 +94,49 @@ export default function App() {
   const [lastClosedShift, setLastClosedShift] = useState(null);
 
   const handleCloseShift = (finalAmount, finalUsdAmount = 0, dopBreakdown = {}, usdBreakdown = {}) => {
-    // Expected = Start - Payouts (DOP logic)
-    // Note: Payouts are in DOP, so Start Amount (DOP) - Payouts (DOP) = Expected Cash (DOP)
-    const expectedAmount = (shift.startAmount || 0) - (shift.currencyPayouts || 0);
-    const expectedUsd = (shift.usdOnHand || 0);
-    const expectedEur = (shift.eurOnHand || 0);
+    const totalDOPInjected = (shift.injections || [])
+      .filter(i => i.currency === 'DOP')
+      .reduce((sum, i) => sum + i.amount, 0);
+
+    const expectedAmount =
+      (shift.startAmount || 0) +
+      totalDOPInjected +
+      (shift.externalSalesTotal || 0) -
+      (shift.currencyPayouts || 0);
+
+    const expectedUsd = shift.usdOnHand || 0;
+    const expectedEur = shift.eurOnHand || 0;
 
     const closedShift = {
       ...shift,
       endTime: new Date().toISOString(),
       finalAmount,
       finalUsdAmount,
-      finalEurAmount: expectedEur, // Keeping it simple as we don't have EUR input yet
+      finalEurAmount: expectedEur,
       dopBreakdown,
       usdBreakdown,
-      expectedAmount: expectedAmount,
+      expectedAmount,
       difference: finalAmount - expectedAmount,
       usdDifference: finalUsdAmount - expectedUsd,
-      eurDifference: expectedEur - expectedEur,
+      eurDifference: 0,
       totalGain: shift.totalGain || 0,
+      totalDOPInjected,
       cashierActivity: salesHistory
         .filter(s => s.shiftId === shift.id)
         .reduce((acc, sale) => {
           const name = sale.cashier || 'Sistema';
           if (!acc[name]) acc[name] = { totalDOP: 0, transactions: 0 };
-          acc[name].totalDOP += sale.dopAmount || 0;
+          acc[name].totalDOP += (sale.dopAmount || sale.total || 0);
           acc[name].transactions += 1;
           return acc;
         }, {}),
-      transactionsList: salesHistory.filter(s => s.shiftId === shift.id)
+      transactionsList: salesHistory.filter(s => s.shiftId === shift.id),
     };
-    
+
     setShiftHistory(prev => [closedShift, ...prev]);
     setShift(null);
     setShowShiftModal(false);
-    
+
     setLastClosedShift(closedShift);
     setShowShiftReceipt(true);
   };
@@ -132,6 +147,30 @@ export default function App() {
     handleLogout();
   };
 
+  // --- Capital injection (admin only) ---
+  const handleCapitalInjection = ({ currency, amount, note, adminName }) => {
+    const injection = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      currency,
+      amount,
+      note,
+      adminName,
+    };
+
+    setShift(prev => {
+      const updates = { injections: [...(prev.injections || []), injection] };
+      if (currency === 'USD') {
+        updates.usdOnHand = (prev.usdOnHand || 0) + amount;
+      }
+      return { ...prev, ...updates };
+    });
+
+    setShowInjectionModal(false);
+    alert(`Inyección de ${currency === 'DOP' ? 'RD$' : '$'}${amount.toLocaleString()} registrada exitosamente.`);
+  };
+
+  // --- SETTINGS ---
   const [storeSettings, setStoreSettings] = useState(() => {
     const saved = localStorage.getItem('divisas-settings');
     const defaultSettings = {
@@ -143,13 +182,9 @@ export default function App() {
       exchangeRate: 58.50,
       salesRate: 60.00,
       exchangeRateEur: 64.00,
-      salesRateEur: 66.00
+      salesRateEur: 66.00,
     };
-    
-    if (saved) {
-      return { ...defaultSettings, ...JSON.parse(saved) };
-    }
-    return defaultSettings;
+    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
 
   useEffect(() => {
@@ -160,19 +195,18 @@ export default function App() {
     setStoreSettings(newSettings);
   };
 
-  // --- USERS STATE ---
+  // --- USERS ---
   const [users, setUsers] = useState(() => {
     try {
       const saved = localStorage.getItem('divisas-users');
       const parsed = saved ? JSON.parse(saved) : null;
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     } catch (e) {
-      console.error("Error loading users:", e);
+      console.error('Error loading users:', e);
     }
-    
     return [
       { id: 1, name: 'Admin General', pin: '1234', role: 'admin' },
-      { id: 2, name: 'Agente Divisas', pin: '0000', role: 'currency_agent' }
+      { id: 2, name: 'Agente Divisas', pin: '0000', role: 'currency_agent' },
     ];
   });
 
@@ -180,18 +214,11 @@ export default function App() {
     localStorage.setItem('divisas-users', JSON.stringify(users));
   }, [users]);
 
-  const handleAddUser = (newUser) => {
-    setUsers(prev => [...prev, { ...newUser, id: Date.now() }]);
-  };
+  const handleAddUser = (newUser) => setUsers(prev => [...prev, { ...newUser, id: Date.now() }]);
+  const handleUpdateUser = (updatedUser) => setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+  const handleDeleteUser = (userId) => setUsers(prev => prev.filter(u => u.id !== userId));
 
-  const handleUpdateUser = (updatedUser) => {
-    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-  };
-
-  const handleDeleteUser = (userId) => {
-    setUsers(prev => prev.filter(u => u.id !== userId));
-  };
-
+  // --- HISTORY ---
   const [shiftHistory, setShiftHistory] = useState(() => {
     const saved = localStorage.getItem('divisas-shift-history');
     return saved ? JSON.parse(saved) : [];
@@ -210,46 +237,54 @@ export default function App() {
     localStorage.setItem('divisas-sales-history', JSON.stringify(salesHistory));
   }, [salesHistory]);
 
+  // --- Currency transaction ---
   const handleCurrencyTransaction = (transactionData) => {
     if (!shift) {
-      alert("Debe abrir la caja para realizar cambios de divisas.");
+      alert('Debe abrir la caja para realizar cambios de divisas.');
       return false;
     }
 
-    const { amount, dopAmount, breakdown, currency = 'USD' } = transactionData;
+    const { amount, dopAmount, breakdown, currency = 'USD', dopBreakdown, rate } = transactionData;
 
-    // --- VALIDATION: Check for sufficient DOP funds ---
-    // Available = Start Amount + Sales (if any) - Payouts
-    const availableFunds = (shift.startAmount || 0) + (shift.salesTotal || 0) - (shift.currencyPayouts || 0);
-    
+    // Available DOP = Start + DOP injections + External sales - Currency payouts
+    const totalDOPInjected = (shift.injections || [])
+      .filter(i => i.currency === 'DOP')
+      .reduce((sum, i) => sum + i.amount, 0);
+
+    const availableFunds =
+      (shift.startAmount || 0) +
+      totalDOPInjected +
+      (shift.externalSalesTotal || 0) -
+      (shift.currencyPayouts || 0);
+
     if (dopAmount > availableFunds) {
-      alert(`⚠️ FONDOS INSUFICIENTES\n\nNo tiene suficientes pesos en caja para realizar esta operación.\n\nDisponible: RD$ ${availableFunds.toLocaleString()}\nRequerido: RD$ ${dopAmount.toLocaleString()}\nFaltante: RD$ ${(dopAmount - availableFunds).toLocaleString()}`);
+      alert(
+        `⚠️ FONDOS INSUFICIENTES\n\n` +
+        `No tiene suficientes pesos en caja para esta operación.\n\n` +
+        `Disponible: RD$ ${availableFunds.toLocaleString()}\n` +
+        `Requerido:  RD$ ${dopAmount.toLocaleString()}\n` +
+        `Faltante:   RD$ ${(dopAmount - availableFunds).toLocaleString()}`
+      );
       return false;
     }
 
-    // Calculate Gain
-    // Start with default spread if settings not fully updated
-    const buyRate = transactionData.rate;
-    const sellRate = currency === 'USD' 
-      ? (storeSettings.salesRate || buyRate + 1.5) 
+    const buyRate = rate;
+    const sellRate = currency === 'USD'
+      ? (storeSettings.salesRate || buyRate + 1.5)
       : (storeSettings.salesRateEur || buyRate + 2.0);
-    
-    const gainPerUnit = sellRate - buyRate;
-    const totalGain = gainPerUnit * amount;
+    const totalGain = (sellRate - buyRate) * amount;
 
     setShift(prev => {
       const updates = {
-        currencyPayouts: (prev.currencyPayouts || 0) + dopAmount, // Total DOP paid out
+        currencyPayouts: (prev.currencyPayouts || 0) + dopAmount,
         transactions: prev.transactions + 1,
-        totalGain: (prev.totalGain || 0) + totalGain // Accumulate Gain
+        totalGain: (prev.totalGain || 0) + totalGain,
       };
-
       if (currency === 'EUR') {
         updates.eurOnHand = (prev.eurOnHand || 0) + amount;
       } else {
-        updates.usdOnHand = (prev.usdOnHand || 0) + amount; // Fallback to USD logic or explicit USD
+        updates.usdOnHand = (prev.usdOnHand || 0) + amount;
       }
-
       return { ...prev, ...updates };
     });
 
@@ -257,23 +292,57 @@ export default function App() {
       id: Date.now(),
       date: new Date().toISOString(),
       type: 'exchange',
-      currency: currency,
+      currency,
       amount,
       dopAmount,
       rate: buyRate,
-      salesRate: sellRate, // Store reference
-      gain: totalGain,     // Store calculated gain
+      salesRate: sellRate,
+      gain: totalGain,
       breakdown,
+      dopBreakdown,
       shiftId: shift.id,
-      cashier: user.name
+      cashier: user.name,
     };
-    
+
     setSalesHistory(prev => [record, ...prev]);
     return true;
   };
 
+  // --- External sale ---
+  const handleExternalSale = ({ items, total }) => {
+    if (!shift) return;
+
+    setShift(prev => ({
+      ...prev,
+      externalSalesTotal: (prev.externalSalesTotal || 0) + total,
+      transactions: prev.transactions + 1,
+    }));
+
+    const record = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      type: 'external_sale',
+      items,
+      total,
+      shiftId: shift.id,
+      cashier: user.name,
+    };
+
+    setSalesHistory(prev => [record, ...prev]);
+  };
+
+  // --- Computed available DOP (for sidebar display) ---
+  const totalDOPInjected = shift
+    ? (shift.injections || []).filter(i => i.currency === 'DOP').reduce((sum, i) => sum + i.amount, 0)
+    : 0;
+  const availableDOP = shift
+    ? (shift.startAmount || 0) + totalDOPInjected + (shift.externalSalesTotal || 0) - (shift.currencyPayouts || 0)
+    : 0;
+
+  // --- Menu ---
   const menuItems = [
     { id: 'currency', label: 'Divisas', icon: DollarSign, roles: ['admin', 'currency_agent'] },
+    { id: 'sales', label: 'Ventas', icon: ShoppingCart, roles: ['admin', 'currency_agent'] },
     { id: 'reports', label: 'Informes', icon: BarChart3, roles: ['admin'] },
     { id: 'users', label: 'Usuarios', icon: UserCog, roles: ['admin'] },
     { id: 'settings', label: 'Configuración', icon: Settings, roles: ['admin'] },
@@ -285,6 +354,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-900 text-slate-100 font-sans overflow-hidden">
+
       {/* Sidebar */}
       <aside className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-800 transform transition-transform duration-300 ease-in-out flex flex-col
@@ -297,27 +367,23 @@ export default function App() {
           </div>
           <div>
             <h1 className="font-bold text-lg tracking-tight">DIVISAS<span className="text-green-500">APP</span></h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">v1.0</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">v2.0</p>
           </div>
         </div>
 
-        {/* Navegación */}
+        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
-            
             return (
               <button
                 key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setIsMobileMenuOpen(false);
-                }}
+                onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
                 className={`
                   w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group
-                  ${isActive 
-                    ? 'bg-green-600 text-white shadow-lg shadow-green-900/40 translate-x-1' 
+                  ${isActive
+                    ? 'bg-green-600 text-white shadow-lg shadow-green-900/40 translate-x-1'
                     : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }
                 `}
@@ -331,43 +397,64 @@ export default function App() {
           })}
         </nav>
 
-        {/* Footer del Sidebar */}
+        {/* Sidebar Footer */}
         <div className="p-4 border-t border-slate-800 shrink-0 bg-slate-900 space-y-2">
-          
-          {/* Shift Info */}
+
+          {/* Shift info */}
           {shift && (
-            <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
-              <p className="text-xs text-slate-400 mb-1">Caja (USD)</p>
-              <div className="flex justify-between items-end">
-                <span className="font-bold text-green-400">${shift.usdOnHand?.toLocaleString() || 0}</span>
-                <span className="text-xs text-slate-500">{shift.transactions} ops</span>
+            <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700 space-y-1">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-400">Disponible DOP</span>
+                <span className="font-bold text-green-400 text-sm">
+                  RD$ {availableDOP.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-400">USD en caja</span>
+                <span className="font-bold text-green-400 text-sm">
+                  ${(shift.usdOnHand || 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-400">Operaciones</span>
+                <span className="text-xs text-slate-500">{shift.transactions}</span>
               </div>
             </div>
           )}
 
+          {/* Injection button — admin only */}
+          {user?.role === 'admin' && shift && (
+            <button
+              onClick={() => setShowInjectionModal(true)}
+              className="w-full py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-black rounded-lg transition-colors flex items-center justify-center gap-1.5 active:scale-95"
+            >
+              <PlusCircle size={14} />
+              Inyectar Capital
+            </button>
+          )}
+
+          {/* User card */}
           <div className="bg-slate-800 rounded-xl p-3 flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center font-bold text-xs text-white">
-               {user.name.charAt(0)}
-             </div>
-             <div className="overflow-hidden flex-1">
-               <p className="text-sm font-bold truncate">{user.name}</p>
-               <p className="text-xs text-green-400 capitalize">{user.role}</p>
-             </div>
+            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center font-bold text-xs text-white shrink-0">
+              {user.name.charAt(0)}
+            </div>
+            <div className="overflow-hidden flex-1">
+              <p className="text-sm font-bold truncate">{user.name}</p>
+              <p className="text-xs text-green-400 capitalize">{user.role}</p>
+            </div>
           </div>
 
+          {/* Shift controls */}
           <div className="grid grid-cols-2 gap-2">
-            <button 
-              onClick={() => {
-                setShiftModalMode('close');
-                setShowShiftModal(true);
-              }}
+            <button
+              onClick={() => { setShiftModalMode('close'); setShowShiftModal(true); }}
               className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white py-2 rounded-lg text-xs font-medium transition-colors"
               title="Cerrar Caja"
             >
               <DollarSign size={16} />
               Cerrar
             </button>
-            <button 
+            <button
               onClick={handleLogout}
               className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-red-900/30 text-slate-300 hover:text-red-400 py-2 rounded-lg text-xs font-medium transition-colors"
               title="Salir"
@@ -379,10 +466,10 @@ export default function App() {
         </div>
       </aside>
 
-      {/* 2. ÁREA PRINCIPAL */}
+      {/* Main area */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative w-full bg-slate-50 lg:ml-64 transition-all duration-300">
-        
-        {/* Header Superior (Móvil) */}
+
+        {/* Mobile header */}
         <header className="lg:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm z-20">
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
             <Menu size={24} />
@@ -391,33 +478,37 @@ export default function App() {
           <div className="w-8"></div>
         </header>
 
-        {/* Contenido Dinámico */}
+        {/* Dynamic content */}
         <div className="flex-1 overflow-hidden p-4 lg:p-6 relative">
           <div className="h-full flex flex-col">
-            
-            {/* VISTA: DIVISAS */}
+
             {activeTab === 'currency' && (
-              <CurrencyView 
+              <CurrencyView
                 settings={storeSettings}
                 onUpdateSettings={handleUpdateSettings}
                 onTransaction={handleCurrencyTransaction}
               />
             )}
 
-            {/* VISTA: INFORMES */}
+            {activeTab === 'sales' && (
+              <CashRegisterView
+                onSale={handleExternalSale}
+                shift={shift}
+                settings={storeSettings}
+              />
+            )}
+
             {activeTab === 'reports' && (
-              <ReportsView 
+              <ReportsView
                 shiftHistory={shiftHistory}
                 salesHistory={salesHistory}
               />
             )}
 
-            {/* VISTA: CONFIGURACIÓN */}
             {activeTab === 'settings' && (
-              <SettingsView 
+              <SettingsView
                 settings={storeSettings}
                 onSave={handleUpdateSettings}
-                // Data Management Props
                 users={users}
                 setUsers={setUsers}
                 shiftHistory={shiftHistory}
@@ -427,9 +518,8 @@ export default function App() {
               />
             )}
 
-            {/* VISTA: USUARIOS */}
             {activeTab === 'users' && (
-              <UsersView 
+              <UsersView
                 users={users}
                 onAddUser={handleAddUser}
                 onUpdateUser={handleUpdateUser}
@@ -441,31 +531,37 @@ export default function App() {
         </div>
       </main>
 
-      {/* Overlay Oscuro (Móvil) */}
+      {/* Mobile overlay */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden transition-opacity"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
-      <ShiftModal 
+      <ShiftModal
         isOpen={showShiftModal}
         mode={shiftModalMode}
         onClose={() => setShowShiftModal(false)}
         onConfirm={shiftModalMode === 'open' ? handleOpenShift : handleCloseShift}
         onSkip={() => handleOpenShift(0, 0)}
-        canSkip={user?.role === 'admin'} 
+        canSkip={user?.role === 'admin'}
         currentShift={shift}
         showCurrencyInput={true}
       />
 
-      {/* Shift Receipt */}
       <ShiftReceipt
         isOpen={showShiftReceipt}
         onClose={handleShiftReceiptClose}
         shift={lastClosedShift}
         settings={storeSettings}
+      />
+
+      <CapitalInjectionModal
+        isOpen={showInjectionModal}
+        onClose={() => setShowInjectionModal(false)}
+        onConfirm={handleCapitalInjection}
+        adminName={user?.name}
       />
     </div>
   );
