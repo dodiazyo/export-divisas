@@ -31,7 +31,7 @@ app.use('/api/shifts', shiftsRoutes);
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../dist')));
-  app.get('/:path*', (req, res) => {
+  app.use((req, res) => {
     res.sendFile(path.join(__dirname, '../dist/index.html'));
   });
 }
