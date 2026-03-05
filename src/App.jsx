@@ -9,7 +9,8 @@ import {
   ShoppingCart,
   PlusCircle,
   Loader2,
-  Activity
+  Activity,
+  Terminal
 } from 'lucide-react';
 import { api } from './lib/api';
 
@@ -78,6 +79,27 @@ export default function App() {
       setShowShiftModal(true);
     }
   }, [user, shift, loading, showShiftReceipt]);
+
+  // --- AUTO-REFRESH ACTIVE SHIFT ---
+  useEffect(() => {
+    let interval;
+    if (shift && user) {
+      interval = setInterval(async () => {
+        try {
+          const freshShift = await api.getActiveShift();
+          if (freshShift && freshShift.id === shift.id) {
+            // Update shift state transparently if there are changes (like injections)
+            setShift(freshShift);
+          }
+        } catch (err) {
+          // Ignored quiet fetch errors (e.g. network hiccup)
+        }
+      }, 15000); // 15 seconds
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [shift, user]);
 
   // --- HANDLERS ---
   const handleLogin = async (loggedInUser, token) => {
@@ -313,10 +335,10 @@ export default function App() {
   const menuItems = [
     { id: 'currency', label: 'Divisas', icon: DollarSign, roles: ['admin', 'currency_agent'] },
     { id: 'sales', label: 'Ventas', icon: ShoppingCart, roles: ['admin', 'currency_agent'] },
-    { id: 'monitor', label: 'Monitor de Cajas', icon: Activity, roles: ['admin'] },
-    { id: 'reports', label: 'Informes', icon: BarChart3, roles: ['admin'] },
-    { id: 'users', label: 'Usuarios', icon: UserCog, roles: ['admin'] },
-    { id: 'settings', label: 'Configuración', icon: Settings, roles: ['admin'] },
+    { id: 'monitor', label: 'Monitor de Cajas', icon: Activity, roles: ['admin', 'it'] },
+    { id: 'reports', label: 'Informes', icon: BarChart3, roles: ['admin', 'it'] },
+    { id: 'users', label: 'Usuarios', icon: UserCog, roles: ['admin', 'it'] },
+    { id: 'settings', label: 'Configuración', icon: Settings, roles: ['admin', 'it'] },
   ].filter(item => user && item.roles.includes(user.role));
 
   return (
@@ -501,7 +523,7 @@ export default function App() {
         onClose={() => setShowShiftModal(false)}
         onConfirm={shiftModalMode === 'open' ? handleOpenShift : handleCloseShift}
         onSkip={() => handleOpenShift(0, 0)}
-        canSkip={user?.role === 'admin'}
+        canSkip={user?.role === 'admin' || user?.role === 'it'}
         currentShift={shift?.data || null}
         showCurrencyInput={true}
       />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Plus, Edit, Trash2, Save, X, Shield, ShieldCheck, Truck, Package, Loader2 } from 'lucide-react';
+import { User, Plus, Edit, Trash2, Save, X, Shield, ShieldCheck, Truck, Package, Loader2, Terminal } from 'lucide-react';
 import { api } from '../lib/api';
 
 export default function UsersView() {
@@ -17,6 +17,7 @@ export default function UsersView() {
   const roles = [
     { id: 'admin', label: 'Administrador', icon: ShieldCheck, color: 'text-red-600' },
     { id: 'currency_agent', label: 'Cajero/a', icon: User, color: 'text-blue-600' },
+    { id: 'it', label: 'Soporte TI', icon: Terminal, color: 'text-purple-600' },
   ];
 
   useEffect(() => {
