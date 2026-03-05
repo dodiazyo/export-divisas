@@ -1,48 +1,50 @@
-import express from 'express';
-import pool from '../database.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import express from "express";
+import pool from "../database.js";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
 router.use(requireAuth);
 
 // Get active shift for the logged in user
-router.get('/active', async (req, res) => {
+router.get("/active", async (req, res) => {
   try {
     const { rows } = await pool.query(
       "SELECT * FROM shifts WHERE user_id = $1 AND status = 'open' ORDER BY id DESC LIMIT 1",
-      [req.user.id]
+      [req.user.id],
     );
     res.json(rows[0] || null);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: "Server error" });
   }
 });
 
 // Admin: Get all currently open shifts
-router.get('/active-all', requireAdmin, async (req, res) => {
+router.get("/active-all", requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      "SELECT id, user_id, user_name, start_time, data FROM shifts WHERE status = 'open' ORDER BY start_time DESC"
+      "SELECT id, user_id, user_name, start_time, data FROM shifts WHERE status = 'open' ORDER BY start_time DESC",
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: "Server error" });
   }
 });
 
 // Admin: Get all shifts history
-router.get('/', requireAdmin, async (req, res) => {
+router.get("/", requireAdmin, async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM shifts ORDER BY created_at DESC");
+    const { rows } = await pool.query(
+      "SELECT * FROM shifts ORDER BY created_at DESC",
+    );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: "Server error" });
   }
 });
 
 // Admin: Get all transactions (for reports)
-router.get('/transactions', requireAdmin, async (req, res) => {
+router.get("/transactions", requireAdmin, async (req, res) => {
   const { from, to } = req.query;
   try {
     let query = "SELECT * FROM transactions";
@@ -52,86 +54,157 @@ router.get('/transactions', requireAdmin, async (req, res) => {
       params = [from, to];
     }
     query += " ORDER BY date DESC";
-    
+
     const { rows } = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: "Server error" });
   }
 });
 
 // Open a new shift
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     // Check if user already has an open shift
-    const existing = await pool.query("SELECT id FROM shifts WHERE user_id = $1 AND status = 'open'", [req.user.id]);
+    const existing = await pool.query(
+      "SELECT id FROM shifts WHERE user_id = $1 AND status = 'open'",
+      [req.user.id],
+    );
     if (existing.rows.length > 0) {
-      return res.status(400).json({ error: 'User already has an open shift' });
+      return res.status(400).json({ error: "User already has an open shift" });
     }
 
     const { data } = req.body;
     const { rows } = await pool.query(
       "INSERT INTO shifts (user_id, user_name, data) VALUES ($1, $2, $3) RETURNING *",
-      [req.user.id, req.user.name, JSON.stringify(data || {})]
+      [req.user.id, req.user.name, JSON.stringify(data || {})],
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: "Server error" });
   }
 });
 
 // Close a shift
-router.put('/:id/close', async (req, res) => {
+router.put("/:id/close", async (req, res) => {
   const { id } = req.params;
   const { data } = req.body;
   try {
     // Verify shift belongs to user (or is admin)
-    if (req.user.role !== 'admin') {
-      const shiftCheck = await pool.query("SELECT user_id FROM shifts WHERE id = $1", [id]);
-      if (shiftCheck.rows.length === 0 || shiftCheck.rows[0].user_id !== req.user.id) {
-        return res.status(403).json({ error: 'Not authorized' });
+    if (req.user.role !== "admin") {
+      const shiftCheck = await pool.query(
+        "SELECT user_id FROM shifts WHERE id = $1",
+        [id],
+      );
+      if (
+        shiftCheck.rows.length === 0 ||
+        shiftCheck.rows[0].user_id !== req.user.id
+      ) {
+        return res.status(403).json({ error: "Not authorized" });
       }
     }
 
     const { rows } = await pool.query(
       "UPDATE shifts SET status = 'closed', closed_at = NOW(), data = $1 WHERE id = $2 RETURNING *",
-      [JSON.stringify(data || {}), id]
+      [JSON.stringify(data || {}), id],
     );
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: "Server error" });
   }
 });
 
 // Register a transaction
-router.post('/:id/transactions', async (req, res) => {
+router.post("/:id/transactions", async (req, res) => {
   const { id } = req.params;
   const { type, data } = req.body;
-  
+
   try {
+    await pool.query("BEGIN");
+
     const { rows } = await pool.query(
       "INSERT INTO transactions (shift_id, type, data) VALUES ($1, $2, $3) RETURNING *",
-      [id, type, JSON.stringify(data)]
+      [id, type, JSON.stringify(data)],
     );
-    res.status(201).json(rows[0]);
+    const newTx = rows[0];
+
+    const shiftRes = await pool.query(
+      "SELECT data FROM shifts WHERE id = $1 FOR UPDATE",
+      [id],
+    );
+    if (shiftRes.rows.length > 0) {
+      const shiftData = shiftRes.rows[0].data || {};
+
+      if (type === "exchange") {
+        shiftData.currencyPayouts =
+          (shiftData.currencyPayouts || 0) + (data.dopAmount || 0);
+        if (data.currency === "USD")
+          shiftData.usdOnHand = (shiftData.usdOnHand || 0) + (data.amount || 0);
+        if (data.currency === "EUR")
+          shiftData.eurOnHand = (shiftData.eurOnHand || 0) + (data.amount || 0);
+        shiftData.totalGain = (shiftData.totalGain || 0) + (data.gain || 0);
+      } else if (type === "external_sale") {
+        shiftData.externalSalesTotal =
+          (shiftData.externalSalesTotal || 0) + (data.total || 0);
+      }
+
+      shiftData.transactions = (shiftData.transactions || 0) + 1;
+
+      await pool.query("UPDATE shifts SET data = $1 WHERE id = $2", [
+        JSON.stringify(shiftData),
+        id,
+      ]);
+    }
+
+    await pool.query("COMMIT");
+    res.status(201).json(newTx);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    await pool.query("ROLLBACK");
+    res.status(500).json({ error: "Server error" });
   }
 });
 
 // Inject capital (Admin only for a specific shift)
-router.post('/:id/injections', requireAdmin, async (req, res) => {
+router.post("/:id/injections", requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { data } = req.body;
-  
+
   try {
+    await pool.query("BEGIN");
+
     const { rows } = await pool.query(
       "INSERT INTO injections (shift_id, data) VALUES ($1, $2) RETURNING *",
-      [id, JSON.stringify(data)]
+      [id, JSON.stringify(data)],
     );
-    res.status(201).json(rows[0]);
+    const newInj = rows[0];
+
+    const shiftRes = await pool.query(
+      "SELECT data FROM shifts WHERE id = $1 FOR UPDATE",
+      [id],
+    );
+    if (shiftRes.rows.length > 0) {
+      const shiftData = shiftRes.rows[0].data || {};
+
+      shiftData.injections = shiftData.injections || [];
+      shiftData.injections.push(data);
+
+      if (data.currency === "USD") {
+        shiftData.usdOnHand = (shiftData.usdOnHand || 0) + (data.amount || 0);
+      } else if (data.currency === "EUR") {
+        shiftData.eurOnHand = (shiftData.eurOnHand || 0) + (data.amount || 0);
+      }
+
+      await pool.query("UPDATE shifts SET data = $1 WHERE id = $2", [
+        JSON.stringify(shiftData),
+        id,
+      ]);
+    }
+
+    await pool.query("COMMIT");
+    res.status(201).json(newInj);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    await pool.query("ROLLBACK");
+    res.status(500).json({ error: "Server error" });
   }
 });
 
