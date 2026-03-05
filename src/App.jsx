@@ -195,6 +195,8 @@ export default function App() {
           const updates = { injections: [...(pd.injections || []), injection] };
           if (currency === 'USD') {
             updates.usdOnHand = (pd.usdOnHand || 0) + amount;
+          } else if (currency === 'EUR') {
+            updates.eurOnHand = (pd.eurOnHand || 0) + amount;
           }
           return { ...prev, data: { ...pd, ...updates } };
         });
