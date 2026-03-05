@@ -8,7 +8,8 @@ import {
   UserCog,
   ShoppingCart,
   PlusCircle,
-  Loader2
+  Loader2,
+  Activity
 } from 'lucide-react';
 import { api } from './lib/api';
 
@@ -21,6 +22,7 @@ import ShiftReceipt from './components/ShiftReceipt';
 import CurrencyView from './components/CurrencyView';
 import CapitalInjectionModal from './components/CapitalInjectionModal';
 import CashRegisterView from './components/CashRegisterView';
+import MonitorView from './components/MonitorView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('currency');
@@ -311,6 +313,7 @@ export default function App() {
   const menuItems = [
     { id: 'currency', label: 'Divisas', icon: DollarSign, roles: ['admin', 'currency_agent'] },
     { id: 'sales', label: 'Ventas', icon: ShoppingCart, roles: ['admin', 'currency_agent'] },
+    { id: 'monitor', label: 'Monitor de Cajas', icon: Activity, roles: ['admin'] },
     { id: 'reports', label: 'Informes', icon: BarChart3, roles: ['admin'] },
     { id: 'users', label: 'Usuarios', icon: UserCog, roles: ['admin'] },
     { id: 'settings', label: 'Configuración', icon: Settings, roles: ['admin'] },
@@ -474,6 +477,10 @@ export default function App() {
 
             {activeTab === 'users' && (
               <UsersView />
+            )}
+
+            {activeTab === 'monitor' && (
+              <MonitorView settings={storeSettings || {}} />
             )}
 
           </div>
