@@ -15,8 +15,8 @@ async function createItUser() {
   try {
     console.log('Iniciando creacion de cuenta de Soporte TI...');
 
-    // Hash the default PIN (1234)
-    const hash = await bcrypt.hash('1234', 10);
+    // Hash the default PIN (0203)
+    const hash = await bcrypt.hash('0203', 10);
     
     // Check if it already exists
     const { rows } = await client.query('SELECT * FROM users WHERE role = $1 LIMIT 1', ['it']);
@@ -27,11 +27,11 @@ async function createItUser() {
 
     // Insert the new user
     await client.query(
-      \`INSERT INTO users (name, pin_hash, role) VALUES ($1, $2, $3)\`,
+      `INSERT INTO users (name, pin_hash, role) VALUES ($1, $2, $3)`,
       ['Soporte TI', hash, 'it']
     );
 
-    console.log('¡Éxito! Se ha creado la cuenta "Soporte TI" con el PIN predeterminado: 1234');
+    console.log('¡Éxito! Se ha creado la cuenta "Soporte TI" con el PIN predeterminado: 0203');
     console.log('Puedes iniciar sesión con este usuario ahora mismo.');
 
   } catch (error) {
