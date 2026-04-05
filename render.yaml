@@ -11,3 +11,9 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: SUPERADMIN_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://export-divisas.onrender.com
+      - key: APP_URL
+        value: https://export-divisas.onrender.com
