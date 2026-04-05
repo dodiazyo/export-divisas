@@ -29,25 +29,25 @@ export default function AdminAuthModal({ isOpen, onClose, onConfirm, actionTitle
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
-
-        <div className="bg-red-50 dark:bg-red-900/20 p-6 flex flex-col items-center text-center border-b border-red-100 dark:border-red-900">
-          <div className="w-12 h-12 bg-red-100 dark:bg-red-900/40 text-red-600 rounded-full flex items-center justify-center mb-3">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+        
+        <div className="bg-red-50 p-6 flex flex-col items-center text-center border-b border-red-100">
+          <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-3">
             <ShieldAlert size={24} />
           </div>
-          <h3 className="text-lg font-bold text-slate-800 dark:text-gray-100">Autorización Requerida</h3>
-          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
+          <h3 className="text-lg font-bold text-slate-800">Autorización Requerida</h3>
+          <p className="text-sm text-slate-500 mt-1">
             Para {actionTitle || 'realizar esta acción'} necesitas permiso de Administrador.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6">
           <div className="mb-4">
-            <label className="block text-xs font-bold text-slate-500 dark:text-gray-400 uppercase mb-2 text-center">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 text-center">
               Ingrese PIN de Administrador
             </label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-500" size={18} />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 type="password"
                 autoFocus
@@ -56,7 +56,7 @@ export default function AdminAuthModal({ isOpen, onClose, onConfirm, actionTitle
                   setPin(e.target.value);
                   setError('');
                 }}
-                className="w-full pl-10 pr-4 py-3 border border-slate-300 dark:border-gray-600 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-lg tracking-widest text-slate-900 dark:text-gray-100 bg-white dark:bg-gray-700 placeholder:text-slate-400"
+                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-lg tracking-widest text-slate-900 bg-white placeholder:text-slate-400"
                 placeholder="••••"
                 maxLength={4}
               />
@@ -68,7 +68,7 @@ export default function AdminAuthModal({ isOpen, onClose, onConfirm, actionTitle
             <button
               type="button"
               onClick={handleClose}
-              className="px-4 py-2 bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300 font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-gray-600 transition-colors"
+              className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-lg hover:bg-slate-200 transition-colors"
             >
               Cancelar
             </button>

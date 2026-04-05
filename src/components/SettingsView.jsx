@@ -33,7 +33,7 @@ export default function SettingsView({ settings, onSave }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const updated = await api.updateSettings({ ...formData, rateUpdatedAt: new Date().toISOString() });
+      const updated = await api.updateSettings(formData);
       onSave(updated);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
@@ -45,15 +45,15 @@ export default function SettingsView({ settings, onSave }) {
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-gray-900 p-6 overflow-y-auto">
+    <div className="h-full flex flex-col bg-slate-50 p-6 overflow-y-auto">
       <div className="max-w-2xl mx-auto w-full">
         
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-gray-100">Configuración</h1>
-          <p className="text-slate-500 dark:text-gray-400">Información del negocio y tasa de cambio.</p>
+          <h1 className="text-2xl font-bold text-slate-800">Configuración</h1>
+          <p className="text-slate-500">Información del negocio y tasa de cambio.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 overflow-hidden">
+        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-6 space-y-6">
             
             {/* Exchange Rate - PRIORITY */}
@@ -141,12 +141,12 @@ export default function SettingsView({ settings, onSave }) {
               </div>
             </div>
 
-            <div className="border-t border-slate-100 dark:border-gray-700 pt-6">
-              <h3 className="text-sm font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider mb-4">Datos del Negocio (Para Recibos)</h3>
+            <div className="border-t border-slate-100 pt-6">
+              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Datos del Negocio (Para Recibos)</h3>
               
               {/* Store Name */}
               <div className="mb-4">
-                <label className="block text-sm font-bold text-slate-700 dark:text-gray-200 mb-2 flex items-center gap-2">
+                <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
                   <Building2 size={18} className="text-blue-600" />
                   Nombre del Negocio
                 </label>
@@ -155,7 +155,7 @@ export default function SettingsView({ settings, onSave }) {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-gray-600 focus:border-blue-500 outline-none transition-all text-slate-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 outline-none transition-all text-slate-900 bg-white"
                   placeholder="Ej: Casa de Cambio Express"
                   required
                 />
@@ -164,7 +164,7 @@ export default function SettingsView({ settings, onSave }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 {/* RNC */}
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-gray-200 mb-2 flex items-center gap-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
                     <Hash size={18} className="text-blue-600" />
                     RNC / Cédula
                   </label>
@@ -173,14 +173,14 @@ export default function SettingsView({ settings, onSave }) {
                     name="rnc"
                     value={formData.rnc}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-gray-600 focus:border-blue-500 outline-none text-slate-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+                    className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 outline-none text-slate-900 bg-white"
                     placeholder="000-0000000-0"
                   />
                 </div>
 
                 {/* Phone */}
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-gray-200 mb-2 flex items-center gap-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
                     <Phone size={18} className="text-blue-600" />
                     Teléfono
                   </label>
@@ -189,7 +189,7 @@ export default function SettingsView({ settings, onSave }) {
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-gray-600 focus:border-blue-500 outline-none text-slate-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+                    className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 outline-none text-slate-900 bg-white"
                     placeholder="(809) 000-0000"
                   />
                 </div>
@@ -197,7 +197,7 @@ export default function SettingsView({ settings, onSave }) {
 
               {/* Address */}
               <div className="mb-4">
-                <label className="block text-sm font-bold text-slate-700 dark:text-gray-200 mb-2 flex items-center gap-2">
+                <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
                   <MapPin size={18} className="text-blue-600" />
                   Dirección
                 </label>
@@ -206,14 +206,14 @@ export default function SettingsView({ settings, onSave }) {
                   name="address"
                   value={formData.address}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-gray-600 focus:border-blue-500 outline-none text-slate-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 outline-none text-slate-900 bg-white"
                   placeholder="Dirección del local..."
                 />
               </div>
 
               {/* Receipt Message */}
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-gray-200 mb-2 flex items-center gap-2">
+                <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
                   <FileText size={18} className="text-blue-600" />
                   Mensaje en Recibo
                 </label>
@@ -222,7 +222,7 @@ export default function SettingsView({ settings, onSave }) {
                   value={formData.receiptMessage}
                   onChange={handleChange}
                   rows="2"
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-gray-600 focus:border-blue-500 outline-none resize-none text-slate-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 outline-none resize-none text-slate-900 bg-white"
                   placeholder="¡Gracias por su preferencia!"
                 />
               </div>
@@ -230,7 +230,7 @@ export default function SettingsView({ settings, onSave }) {
 
           </div>
 
-          <div className="bg-slate-50 dark:bg-gray-700 px-6 py-4 border-t border-slate-200 dark:border-gray-600 flex items-center justify-between">
+          <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-between">
             {showSuccess ? (
               <span className="text-green-600 font-bold animate-in fade-in slide-in-from-left">
                 ¡Guardado correctamente!

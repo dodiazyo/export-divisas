@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DollarSign, Printer, Trash2 } from 'lucide-react';
 import DopConfirmModal from './DopConfirmModal';
-import { multiply, sumBills } from '../lib/money.js';
 
 export default function CurrencyView({ settings, onUpdateSettings, onTransaction }) {
   const [currency, setCurrency] = useState('USD');
@@ -27,9 +26,12 @@ export default function CurrencyView({ settings, onUpdateSettings, onTransaction
   }, [currency]);
 
   useEffect(() => {
-    const total = sumBills(bills);           // suma con precisión entera
+    let total = 0;
+    Object.entries(bills).forEach(([denom, count]) => {
+      total += parseInt(denom) * (parseInt(count) || 0);
+    });
     setTotalForeign(total);
-    setTotalDOP(multiply(total, rate));      // multiplicación sin error de float
+    setTotalDOP(total * rate);
   }, [bills, rate]);
 
   useEffect(() => {
