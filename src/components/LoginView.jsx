@@ -1,129 +1,236 @@
-import React, { useState } from 'react';
-import { Delete, ArrowRight, DollarSign } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 
-export default function LoginView({ onLogin }) {
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+export default function LoginView({ onLogin, onGoRegister, onForgotPassword }) {
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [time, setTime]         = useState(new Date());
 
-  const handleNumberClick = (num) => {
-    setPin(prev => prev + num);
-    setError('');
-  };
-
-  const handleDelete = () => {
-    setPin(prev => prev.slice(0, -1));
-    setError('');
-  };
+  // Reloj
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!pin) return;
-    
+    if (loading) return;
+    setError('');
     setLoading(true);
     try {
-      const res = await api.login(pin);
+      const res = await api.login(email.trim(), password);
+
+      // Guardar contexto del tenant si viene en la respuesta
+      if (res.tenant) {
+        localStorage.setItem('divisas-tenant-id', res.tenant.id);
+        localStorage.setItem('divisas-tenant-name', res.tenant.businessName);
+      }
+
       onLogin(res.user, res.token);
     } catch (err) {
-      setError(err.message || 'Contraseña Incorrecta');
-      setPin('');
+      setError(err.message || 'Correo o contraseña incorrectos');
     } finally {
       setLoading(false);
     }
   };
 
+  const inputBase = {
+    width: '100%',
+    padding: '13px 14px',
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
+    borderRadius: 10,
+    color: 'var(--text-primary)',
+    fontSize: 14,
+    outline: 'none',
+    transition: 'border-color 0.15s',
+    boxSizing: 'border-box',
+  };
+
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
-        
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--gradient-page)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20,
+    }}>
+      <div style={{
+        width: '100%', maxWidth: 420,
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 20,
+        overflow: 'hidden',
+        boxShadow: '0 25px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,168,67,0.1)',
+      }}>
+
         {/* Header */}
-        <div className="bg-green-600 p-8 text-center">
-          <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-            <DollarSign size={40} className="text-white" />
+        <div style={{
+          padding: '32px 28px 24px',
+          background: 'var(--gradient-card-header)',
+          borderBottom: '1px solid var(--border)',
+          textAlign: 'center',
+        }}>
+          <div style={{
+            width: 72, height: 72,
+            background: 'linear-gradient(135deg, var(--gold), var(--gold-light))',
+            borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+            fontSize: 32,
+            boxShadow: '0 8px 24px rgba(212,168,67,0.3)',
+          }}>💱</div>
+
+          <h1 style={{
+            fontSize: 22, fontWeight: 800, letterSpacing: 2,
+            color: 'var(--text-primary)', marginBottom: 4,
+          }}>
+            DIVISAS <span style={{ color: 'var(--gold)' }}>PRO</span>
+          </h1>
+
+          <p style={{ fontSize: 11, color: 'var(--text-subtle)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>
+            Sistema de Gestión
+          </p>
+
+          <div style={{
+            fontSize: 28, fontWeight: 800, fontFamily: 'monospace',
+            color: 'var(--gold)', letterSpacing: 3,
+          }}>
+            {time.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1 uppercase">SISTEMA</h1>
-          <p className="text-green-100 text-sm">Gestión de Divisas</p>
         </div>
 
-        {/* PIN Input */}
-        <div className="p-8">
-          <form onSubmit={handleSubmit}>
-            <div className="mb-8 relative">
-              <p className="text-slate-500 mb-2 text-center">Ingrese su contraseña o PIN</p>
-              
+        {/* Form */}
+        <form onSubmit={handleSubmit} style={{ padding: '28px 28px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          <p style={{
+            textAlign: 'center', fontSize: 11, color: 'var(--text-muted)',
+            letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4,
+          }}>
+            Iniciar sesión
+          </p>
+
+          {/* Email */}
+          <div>
+            <label style={{
+              display: 'block', fontSize: 11, fontWeight: 700,
+              color: 'var(--text-subtle)', letterSpacing: 1.5,
+              textTransform: 'uppercase', marginBottom: 7,
+            }}>
+              Correo electrónico
+            </label>
+            <input
+              type="email"
+              required
+              autoFocus
+              value={email}
+              onChange={e => { setEmail(e.target.value); setError(''); }}
+              style={inputBase}
+              placeholder="usuario@negocio.com"
+              onFocus={e => e.target.style.borderColor = 'var(--gold)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+          </div>
+
+          {/* Contraseña */}
+          <div>
+            <label style={{
+              display: 'block', fontSize: 11, fontWeight: 700,
+              color: 'var(--text-subtle)', letterSpacing: 1.5,
+              textTransform: 'uppercase', marginBottom: 7,
+            }}>
+              Contraseña
+            </label>
+            <div style={{ position: 'relative' }}>
               <input
-                type="password"
-                value={pin}
-                onChange={(e) => {
-                  setPin(e.target.value);
-                  setError('');
-                }}
-                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-green-500 outline-none text-center text-2xl tracking-widest text-slate-800 bg-slate-50 transition-all shadow-inner mb-2"
-                placeholder="****"
-                autoFocus
-                disabled={loading}
+                type={showPass ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={e => { setPassword(e.target.value); setError(''); }}
+                style={{ ...inputBase, paddingRight: 44 }}
+                placeholder="Tu contraseña"
+                onKeyDown={e => e.key === 'Enter' && handleSubmit(e)}
+                onFocus={e => e.target.style.borderColor = 'var(--gold)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
               />
-              
-              {error && (
-                <p className="text-red-500 text-sm font-medium animate-in fade-in slide-in-from-top-1 text-center absolute left-0 right-0 -bottom-6">
-                  {error}
-                </p>
-              )}
-            </div>
-
-            {/* Keypad */}
-            <div className="grid grid-cols-3 gap-4 mb-6 relative">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleNumberClick(num.toString())}
-                  className="w-full h-14 rounded-lg border border-slate-200 shadow-sm font-mono text-xl font-medium text-slate-700 bg-white hover:bg-slate-50 active:bg-slate-100 transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {num}
-                </button>
-              ))}
-              <div className="flex items-center justify-center">
-                {pin.length > 0 && !loading && (
-                  <button
-                    type="button"
-                    onClick={() => setPin('')}
-                    className="text-slate-400 hover:text-slate-600 text-xs font-bold uppercase tracking-wider"
-                  >
-                    Borrar
-                  </button>
-                )}
-              </div>
               <button
                 type="button"
-                disabled={loading}
-                onClick={() => handleNumberClick('0')}
-                className="h-14 rounded-lg bg-white hover:bg-slate-50 text-xl font-medium text-slate-700 transition-all active:scale-95 shadow-sm border border-slate-200 disabled:opacity-50"
+                onClick={() => setShowPass(p => !p)}
+                style={{
+                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-subtle)', padding: 4,
+                }}
               >
-                0
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={handleDelete}
-                className="h-14 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-500 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-red-100 disabled:opacity-50"
-              >
-                <Delete size={20} />
+                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+          </div>
 
+          {/* Error */}
+          {error && (
+            <div style={{
+              background: 'var(--red-bg)', border: '1px solid var(--red-border)',
+              borderRadius: 8, padding: '10px 14px',
+              color: 'var(--red)', fontSize: 13, fontWeight: 600,
+            }}>
+              ⚠ {error}
+            </div>
+          )}
+
+          {/* Botón */}
+          <button
+            type="submit"
+            disabled={loading || !email || !password}
+            style={{
+              height: 52, borderRadius: 12, border: 'none', marginTop: 4,
+              background: (!loading && email && password)
+                ? 'linear-gradient(135deg, var(--gold), var(--gold-light))'
+                : 'var(--bg-elevated)',
+              color: (!loading && email && password) ? 'var(--bg-base)' : 'var(--text-subtle)',
+              fontSize: 14, fontWeight: 900, letterSpacing: 1,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            {loading
+              ? <><Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> Verificando...</>
+              : <> Ingresar <ArrowRight size={18} /></>
+            }
+          </button>
+
+          {/* Links inferiores */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 4 }}>
             <button
-              type="submit"
-              disabled={loading || !pin}
-              className="w-full py-4 bg-green-600 hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-200 disabled:shadow-none flex items-center justify-center gap-2"
+              type="button"
+              onClick={onForgotPassword}
+              style={{
+                background: 'none', border: 'none',
+                color: 'var(--text-subtle)', fontSize: 12,
+                fontWeight: 600, cursor: 'pointer',
+                textDecoration: 'underline', textUnderlineOffset: 3,
+              }}
             >
-              {loading ? 'Ingresando...' : 'Ingresar'}
-              {!loading && <ArrowRight size={20} />}
+              ¿Olvidaste tu contraseña?
             </button>
-          </form>
-        </div>
+            <button
+              type="button"
+              onClick={onGoRegister}
+              style={{
+                background: 'none', border: 'none',
+                color: 'var(--gold)', fontSize: 13,
+                fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Crear cuenta nueva →
+            </button>
+          </div>
+
+        </form>
       </div>
     </div>
   );

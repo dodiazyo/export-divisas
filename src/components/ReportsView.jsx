@@ -1,37 +1,39 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Download, FileText, Loader2 } from 'lucide-react';
+import { Calendar, Download, FileText, Loader2, RefreshCw } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { api } from '../lib/api';
+import VoidTransactionModal from './VoidTransactionModal';
+
+const TYPE_META = {
+  exchange:      { label: 'Cambio',       color: 'var(--green)',  bg: 'var(--green-bg)',  icon: '💱' },
+  external_sale: { label: 'Venta',        color: 'var(--blue)',   bg: 'var(--blue-bg)',   icon: '🛒' },
+  cash_in:       { label: 'Ingreso',      color: 'var(--gold)',   bg: 'var(--gold-bg)',   icon: '💵' },
+  injection:     { label: 'Inyección',    color: 'var(--purple)', bg: '#160d2e',          icon: '💉' },
+};
+const getMeta = (type) => TYPE_META[type] || { label: type, color: 'var(--text-muted)', bg: 'var(--bg-card)', icon: '•' };
+
+const fmt = (n) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function ReportsView() {
-  const [dateRange, setDateRange] = useState({
-    start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
-  });
+  const today = new Date().toISOString().split('T')[0];
+  const [from, setFrom] = useState(
+    new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+  );
+  const [to, setTo] = useState(today);
+  const [typeFilter, setTypeFilter] = useState('all');
 
-  const [salesHistory, setSalesHistory] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetchTransactions();
-    // eslint-disable-next-line
-  }, [dateRange]);
+  const [voidingTx, setVoidingTx] = useState(null);
 
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const data = await api.getTransactions(dateRange.start, dateRange.end);
-      
-      const formatted = data.map(d => ({
-        id: d.id,
-        shiftId: d.shift_id,
-        type: d.type,
-        date: d.date,
-        ...d.data
-      }));
-
-      setSalesHistory(formatted);
+      // Send full day for `to`
+      const data = await api.getTransactions(from, to + 'T23:59:59');
+      const formatted = data.map(d => ({ id: d.id, shiftId: d.shift_id, type: d.type, date: d.date, data: d.data, ...d.data }));
+      setTransactions(formatted);
     } catch (err) {
       alert('Error cargando transacciones: ' + err.message);
     } finally {
@@ -39,248 +41,261 @@ export default function ReportsView() {
     }
   };
 
-  // --- FILTER DATA ---
-  const filteredSales = useMemo(() => {
-    return salesHistory.filter(sale => sale.type === 'exchange');
-  }, [salesHistory]);
+  useEffect(() => { fetchTransactions(); }, [from, to]);
 
-  // --- CALCULATE METRICS ---
-  const metrics = useMemo(() => {
-    const totalUSD = filteredSales.filter(s => s.currency === 'USD').reduce((sum, sale) => sum + (sale.amount || 0), 0);
-    const totalEUR = filteredSales.filter(s => s.currency === 'EUR').reduce((sum, sale) => sum + (sale.amount || 0), 0);
-    const totalDOP = filteredSales.reduce((sum, sale) => sum + (sale.dopAmount || 0), 0);
-    const totalGain = filteredSales.reduce((sum, sale) => sum + (sale.gain || 0), 0);
-    const transactions = filteredSales.length;
-    
-    return { totalUSD, totalEUR, totalDOP, totalGain, transactions };
-  }, [filteredSales]);
+  // Type counts for filter pills
+  const typeCounts = useMemo(() => {
+    const counts = { all: transactions.length };
+    transactions.forEach(t => { counts[t.type] = (counts[t.type] || 0) + 1; });
+    return counts;
+  }, [transactions]);
 
-  // --- EXPORT CSV ---
+  const filtered = useMemo(() => {
+    const list = typeFilter === 'all' ? transactions : transactions.filter(t => t.type === typeFilter);
+    return list;
+  }, [transactions, typeFilter]);
+
+  // KPIs — only from non-voided exchange transactions
+  const exchanges = useMemo(() => filtered.filter(t => t.type === 'exchange' && !t.voided), [filtered]);
+  const sales = useMemo(() => filtered.filter(t => t.type === 'external_sale' && !t.voided), [filtered]);
+
+  const kpis = [
+    { label: 'Cambios USD', value: `$${exchanges.filter(t=>t.currency==='USD').reduce((s,t)=>s+(t.amount||0),0).toLocaleString('es-DO')}`, color: 'var(--green)', bg: 'var(--green-bg)', border: '#16a34a30' },
+    { label: 'Cambios EUR', value: `€${exchanges.filter(t=>t.currency==='EUR').reduce((s,t)=>s+(t.amount||0),0).toLocaleString('es-DO')}`, color: 'var(--blue)', bg: 'var(--blue-bg)', border: '#1e40af30' },
+    { label: 'Ventas DOP', value: `RD$ ${sales.reduce((s,t)=>s+(t.total||0),0).toLocaleString('es-DO',{maximumFractionDigits:0})}`, color: 'var(--text-primary)', bg: 'var(--bg-card)', border: 'var(--border)' },
+    { label: 'Ganancia Est.', value: `RD$ ${exchanges.reduce((s,t)=>s+(t.gain||0),0).toLocaleString('es-DO',{maximumFractionDigits:0})}`, color: 'var(--gold)', bg: 'var(--gold-bg)', border: 'rgba(212,168,67,0.2)' },
+    { label: 'Operaciones', value: filtered.filter(t=>!t.voided).length, color: 'var(--purple)', bg: '#160d2e', border: '#4c1d9530' },
+  ];
+
+  // --- CSV export ---
   const handleExportCSV = () => {
-    const headers = ['ID', 'Fecha', 'Moneda', 'Monto', 'Tasa', 'Total DOP', 'Ganancia (DOP)', 'Cajero'];
-    const rows = filteredSales.map(sale => [
-      sale.id,
-      new Date(sale.date).toLocaleString(),
-      sale.currency || 'USD',
-      sale.amount,
-      sale.rate,
-      sale.dopAmount,
-      sale.gain || 0,
-      sale.cashier
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `reporte_divisas_${dateRange.start}_${dateRange.end}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const headers = ['ID', 'Fecha', 'Tipo', 'Cajero/Usuario', 'Detalle', 'Monto DOP', 'Estado'];
+    const rows = filtered.map(t => {
+      let detalle = '';
+      let montoDOP = '';
+      if (t.type === 'exchange') {
+        detalle = `${t.currency} ${t.amount} @ ${t.rate}`;
+        montoDOP = t.dopAmount || 0;
+      } else if (t.type === 'external_sale') {
+        detalle = (t.items || []).map(i => `${i.concept} x${i.qty}`).join('; ');
+        montoDOP = t.total || 0;
+      }
+      return [t.id, new Date(t.date).toLocaleString('es-DO'), getMeta(t.type).label, t.cashier || t.adminName || '', detalle, montoDOP, t.voided ? 'ANULADA' : 'Activa'];
+    });
+    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `informe_${from}_${to}.csv`;
+    a.click();
   };
 
-  // --- EXPORT PDF ---
+  // --- PDF export ---
   const handleExportPDF = () => {
     const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(18);
-    doc.text('Reporte de Transacciones - Divisas', 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Rango: ${dateRange.start} al ${dateRange.end}`, 14, 22);
-    
-    // Metrics Summary
-    doc.setFontSize(12);
-    doc.text('Resumen del Periodo:', 14, 32);
-    doc.setFontSize(10);
-    doc.text(`USD Comprados: $${metrics.totalUSD.toLocaleString()}`, 14, 38);
-    doc.text(`EUR Comprados: €${metrics.totalEUR.toLocaleString()}`, 14, 43);
-    doc.text(`Total DOP: RD$ ${metrics.totalDOP.toLocaleString()}`, 14, 48);
-    doc.text(`Operaciones: ${metrics.transactions}`, 14, 53);
+    doc.setFontSize(16); doc.text('Informe de Transacciones', 14, 16);
+    doc.setFontSize(9); doc.setTextColor(100);
+    doc.text(`Período: ${from} al ${to}`, 14, 22);
+    doc.text(`Generado: ${new Date().toLocaleString('es-DO')}`, 14, 27);
 
-    // Table
-    const headers = [['Fecha', 'Cajero', 'Moneda', 'Monto', 'Tasa', 'Pagado (DOP)']];
-    const data = filteredSales.map(sale => [
-      new Date(sale.date).toLocaleString(),
-      sale.cashier,
-      sale.currency || 'USD',
-      `${sale.currency === 'EUR' ? '€' : '$'}${sale.amount.toLocaleString()}`,
-      sale.rate?.toFixed(2) || '0.00',
-      `RD$ ${sale.dopAmount?.toLocaleString() || 0}`
-    ]);
-
-    autoTable(doc, {
-      startY: 60,
-      head: headers,
-      body: data,
-      theme: 'grid',
-      headStyles: { fillColor: [15, 23, 42] },
-      styles: { fontSize: 8 },
-      columnStyles: {
-        3: { halign: 'right' },
-        4: { halign: 'center' },
-        5: { halign: 'right' }
-      }
+    const body = filtered.map(t => {
+      let detalle = '';
+      let monto = '';
+      if (t.type === 'exchange') { detalle = `${t.currency} ${t.amount} @ ${t.rate?.toFixed(2)}`; monto = `RD$ ${fmt(t.dopAmount)}`; }
+      else if (t.type === 'external_sale') { detalle = (t.items||[]).map(i=>`${i.concept} x${i.qty}`).join(', '); monto = `RD$ ${fmt(t.total)}`; }
+      return [
+        new Date(t.date).toLocaleDateString('es-DO'),
+        getMeta(t.type).label,
+        t.cashier || t.adminName || '—',
+        detalle,
+        monto,
+        t.voided ? 'ANULADA' : '✓',
+      ];
     });
 
-    doc.save(`reporte_divisas_${dateRange.start}_${dateRange.end}.pdf`);
+    autoTable(doc, {
+      startY: 33,
+      head: [['Fecha', 'Tipo', 'Cajero', 'Detalle', 'Monto', 'Estado']],
+      body,
+      theme: 'striped',
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      styles: { fontSize: 8 },
+      columnStyles: { 4: { halign: 'right' }, 5: { halign: 'center' } },
+    });
+
+    doc.save(`informe_${from}_${to}.pdf`);
   };
 
+  const inputStyle = {
+    background: 'var(--bg-card)', border: '1px solid var(--border)',
+    borderRadius: 8, padding: '6px 12px', color: 'var(--text-primary)',
+    fontSize: 13, outline: 'none', fontFamily: 'inherit',
+  };
+
+  const availableTypes = useMemo(() => Object.keys(typeCounts).filter(k => k !== 'all'), [typeCounts]);
+
   return (
-    <div className="h-full flex flex-col bg-slate-50 p-6 overflow-y-auto">
-      <div className="max-w-6xl mx-auto w-full">
-        
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Historial de Transacciones</h1>
-            <p className="text-slate-500 text-sm">Registro detallado por usuario y moneda</p>
-          </div>
+    <>
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>Informe de Transacciones</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-subtle)' }}>Cambios de divisa, ventas e ingresos del período</p>
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 18px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <Calendar size={16} color="var(--text-subtle)" />
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={inputStyle} />
+          <span style={{ color: 'var(--text-subtle)', fontSize: 13 }}>—</span>
+          <input type="date" value={to} onChange={e => setTo(e.target.value)} style={inputStyle} />
+          <button onClick={fetchTransactions} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 13, fontWeight: 700 }}>
+            <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          </button>
         </div>
-
-        <div className="space-y-6">
-          {/* FILTERS TOOLBAR */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Calendar size={18} className="text-slate-400" />
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="date" 
-                    value={dateRange.start}
-                    onChange={e => setDateRange({...dateRange, start: e.target.value})}
-                    className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900 bg-white focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-slate-400"
-                  />
-                  <span className="text-slate-400">-</span>
-                  <input 
-                    type="date" 
-                    value={dateRange.end}
-                    onChange={e => setDateRange({...dateRange, end: e.target.value})}
-                    className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900 bg-white focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-slate-400"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95"
-              >
-                <Download size={16} className="text-slate-400" />
-                CSV
-              </button>
-              
-              <button 
-                onClick={handleExportPDF}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-all shadow-lg shadow-red-200 active:scale-95"
-              >
-                <FileText size={16} />
-                PDF
-              </button>
-            </div>
-          </div>
-
-          {loading ? (
-             <div className="flex justify-center p-10"><Loader2 className="animate-spin text-slate-400" size={32} /></div>
-          ) : (
-            <>
-              {/* KPI CARDS */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-green-100 flex flex-col">
-                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">USD Comprados</p>
-                  <h3 className="text-2xl font-black text-green-700 mt-1">${metrics.totalUSD.toLocaleString()}</h3>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 flex flex-col">
-                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">EUR Comprados</p>
-                  <h3 className="text-2xl font-black text-blue-700 mt-1">€{metrics.totalEUR.toLocaleString()}</h3>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
-                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">DOP Egresado</p>
-                  <h3 className="text-2xl font-black text-slate-800 mt-1">RD$ {metrics.totalDOP.toLocaleString(undefined, {maximumFractionDigits: 0})}</h3>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-yellow-100 flex flex-col">
-                  <p className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider">Ganancia Est.</p>
-                  <h3 className="text-2xl font-black text-yellow-700 mt-1">RD$ {metrics.totalGain.toLocaleString(undefined, {maximumFractionDigits: 0})}</h3>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100 flex flex-col">
-                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Operaciones</p>
-                  <h3 className="text-2xl font-black text-purple-700 mt-1">{metrics.transactions}</h3>
-                </div>
-              </div>
-
-              {/* TABLE */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
-                      <tr>
-                        <th className="p-4">Fecha y Hora</th>
-                        <th className="p-4">Cajero</th>
-                        <th className="p-4">Moneda</th>
-                        <th className="p-4 text-right">Monto</th>
-                        <th className="p-4 text-center">Tasa</th>
-                        <th className="p-4 text-right">Pagado (DOP)</th>
-                        <th className="p-4 text-right">Ganancia</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredSales.length === 0 ? (
-                        <tr>
-                          <td colSpan="7" className="p-8 text-center text-slate-400">
-                            No hay transacciones en este rango
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredSales.map(sale => (
-                          <tr key={sale.id} className="hover:bg-slate-50 transition-colors group">
-                            <td className="p-4">
-                              <div className="flex flex-col">
-                                <span className="text-slate-700 font-medium">{new Date(sale.date).toLocaleDateString()}</span>
-                                <span className="text-[10px] text-slate-400 uppercase">{new Date(sale.date).toLocaleTimeString()}</span>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
-                                  {sale.cashier?.charAt(0)}
-                                </div>
-                                <span className="text-sm font-bold text-slate-700">{sale.cashier}</span>
-                              </div>
-                            </td>
-                            <td className="p-4 text-center">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                sale.currency === 'EUR' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                              }`}>
-                                {sale.currency || 'USD'}
-                              </span>
-                            </td>
-                            <td className="p-4 text-right font-black text-slate-800">
-                              {sale.currency === 'EUR' ? '€' : '$'}{sale.amount?.toLocaleString()}
-                            </td>
-                            <td className="p-4 text-center text-slate-500 font-mono text-xs">{sale.rate?.toFixed(2)}</td>
-                            <td className="p-4 text-right font-bold text-slate-900">RD$ {sale.dopAmount?.toLocaleString()}</td>
-                            <td className="p-4 text-right font-bold text-yellow-600">RD$ {(sale.gain || 0).toLocaleString()}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={handleExportCSV} disabled={filtered.length === 0} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, cursor: 'pointer', background: 'var(--bg-card)', border: '1px solid var(--border)', color: filtered.length > 0 ? 'var(--text-muted)' : 'var(--text-faint)', fontSize: 13, fontWeight: 700 }}>
+            <Download size={14} /> CSV
+          </button>
+          <button onClick={handleExportPDF} disabled={filtered.length === 0} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, cursor: 'pointer', background: filtered.length > 0 ? 'var(--red-bg)' : 'var(--bg-card)', border: `1px solid ${filtered.length > 0 ? 'var(--red-border)' : 'var(--border)'}`, color: filtered.length > 0 ? 'var(--red)' : 'var(--text-faint)', fontSize: 13, fontWeight: 700 }}>
+            <FileText size={14} /> PDF
+          </button>
         </div>
       </div>
+
+      {/* Type filter pills */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {['all', ...availableTypes].map(type => {
+          const active = typeFilter === type;
+          const meta = type === 'all' ? { label: 'Todos', color: 'var(--text-primary)', bg: 'var(--bg-elevated)' } : getMeta(type);
+          return (
+            <button key={type} onClick={() => setTypeFilter(type)} style={{
+              padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              background: active ? meta.bg : 'var(--bg-card)',
+              color: active ? meta.color : 'var(--text-subtle)',
+              fontWeight: active ? 800 : 500, fontSize: 12,
+              outline: active ? `1px solid ${meta.color}40` : 'none',
+              transition: 'all 0.15s',
+            }}>
+              {type !== 'all' && <span style={{ marginRight: 4 }}>{getMeta(type).icon}</span>}
+              {meta.label} <span style={{ opacity: 0.7 }}>({typeCounts[type] || 0})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* KPI cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 20 }}>
+        {kpis.map(({ label, value, color, bg, border }) => (
+          <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 14, padding: '14px 16px' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-subtle)', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color, fontFamily: 'monospace' }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 60, color: 'var(--text-subtle)', gap: 10 }}>
+          <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} /> Cargando...
+        </div>
+      ) : (
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+                  {['Fecha y Hora', 'Tipo', 'Cajero', 'Detalle', 'Monto', 'Acción'].map((h, i) => (
+                    <th key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 700, color: 'var(--text-subtle)', letterSpacing: 1.5, textTransform: 'uppercase', textAlign: i >= 4 ? 'right' : i === 5 ? 'center' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" style={{ padding: 50, textAlign: 'center', color: 'var(--text-subtle)', fontSize: 13 }}>
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div>
+                      No hay transacciones en este período
+                    </td>
+                  </tr>
+                ) : filtered.map(t => {
+                  const meta = getMeta(t.type);
+                  let detalle = '—';
+                  let monto = '—';
+                  let montoColor = 'var(--text-primary)';
+
+                  if (t.type === 'exchange') {
+                    const sym = t.currency === 'EUR' ? '€' : '$';
+                    detalle = `${sym}${(t.amount||0).toLocaleString('es-DO')} @ ${t.rate?.toFixed(2)} · RD$${(t.dopAmount||0).toLocaleString('es-DO')}`;
+                    monto = `${sym}${(t.amount||0).toLocaleString('es-DO')}`;
+                    montoColor = t.currency === 'EUR' ? 'var(--blue)' : 'var(--green)';
+                  } else if (t.type === 'external_sale') {
+                    detalle = (t.items || []).map(i => `${i.concept} ×${i.qty}`).join(', ') || '—';
+                    monto = `RD$ ${(t.total||0).toLocaleString('es-DO')}`;
+                    montoColor = 'var(--gold)';
+                  } else if (t.type === 'cash_in') {
+                    detalle = t.note || '—';
+                    monto = `RD$ ${(t.amount||0).toLocaleString('es-DO')}`;
+                    montoColor = 'var(--gold)';
+                  }
+
+                  return (
+                    <tr key={t.id}
+                      style={{ borderBottom: '1px solid var(--border)', background: t.voided ? 'var(--red-bg)' : 'transparent', opacity: t.voided ? 0.65 : 1, transition: 'background 0.1s' }}
+                      onMouseEnter={e => { if (!t.voided) e.currentTarget.style.background = 'var(--bg-card)'; }}
+                      onMouseLeave={e => { if (!t.voided) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{new Date(t.date).toLocaleDateString('es-DO')}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{new Date(t.date).toLocaleTimeString('es-DO')}</div>
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <span style={{ padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: meta.bg, color: meta.color }}>
+                          {meta.icon} {meta.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        {t.cashier || t.adminName || '—'}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-subtle)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.voided ? <span style={{ color: 'var(--red)', fontWeight: 700 }}>🚫 ANULADA — {t.voidReason}</span> : detalle}
+                      </td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 900, fontFamily: 'monospace', fontSize: 14, color: t.voided ? 'var(--text-subtle)' : montoColor, textDecoration: t.voided ? 'line-through' : 'none', whiteSpace: 'nowrap' }}>
+                        {monto}
+                      </td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                        {t.voided ? null : (
+                          <button
+                            onClick={() => setVoidingTx({ id: t.id, type: t.type, date: t.date, data: t.data })}
+                            style={{ padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, background: 'var(--red-bg)', color: 'var(--red)', border: '1px solid var(--red-border)', cursor: 'pointer' }}
+                          >
+                            Anular
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {filtered.length > 0 && (
+            <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-subtle)', display: 'flex', justifyContent: 'space-between' }}>
+              <span>{filtered.length} registro{filtered.length !== 1 ? 's' : ''}</span>
+              <span>{filtered.filter(t => t.voided).length} anulada{filtered.filter(t=>t.voided).length !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
+
+    <VoidTransactionModal
+      transaction={voidingTx}
+      onClose={() => setVoidingTx(null)}
+      onVoided={() => { setVoidingTx(null); fetchTransactions(); }}
+    />
+    </>
   );
 }

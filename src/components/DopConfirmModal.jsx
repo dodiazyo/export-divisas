@@ -53,11 +53,11 @@ export default function DopConfirmModal({ isOpen, onClose, onConfirm, requiredAm
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col">
 
         <div className="bg-slate-900 text-white px-6 py-5 text-center shrink-0">
           <h2 className="text-xl font-bold">Confirmar Pesos a Entregar</h2>
-          <p className="text-slate-400 text-sm mt-1">Ingrese los billetes DOP que entrega al cliente</p>
+          <p className="text-slate-400 dark:text-gray-400 text-sm mt-1">Ingrese los billetes DOP que entrega al cliente</p>
         </div>
 
         <div className="p-5 overflow-y-auto flex-1">
@@ -75,11 +75,11 @@ export default function DopConfirmModal({ isOpen, onClose, onConfirm, requiredAm
                 key={denom}
                 className={`flex items-center gap-2 p-2.5 rounded-xl border-2 transition-all ${
                   parseInt(dopBills[denom]) > 0
-                    ? 'bg-white border-slate-700 shadow-sm'
-                    : 'bg-slate-50 border-slate-200'
+                    ? 'bg-white dark:bg-gray-700 border-slate-700 dark:border-gray-400 shadow-sm'
+                    : 'bg-slate-50 dark:bg-gray-700 border-slate-200 dark:border-gray-600'
                 }`}
               >
-                <span className="text-xs font-black text-slate-600 w-14 text-right shrink-0 leading-tight">
+                <span className="text-xs font-black text-slate-600 dark:text-gray-300 w-14 text-right shrink-0 leading-tight">
                   RD$<br />{denom.toLocaleString()}
                 </span>
                 <input
@@ -91,10 +91,10 @@ export default function DopConfirmModal({ isOpen, onClose, onConfirm, requiredAm
                   onKeyDown={e => handleKeyDown(e, denom)}
                   onFocus={e => e.target.select()}
                   placeholder="0"
-                  className="flex-1 text-center font-black text-slate-900 text-xl outline-none bg-transparent min-w-0"
+                  className="flex-1 text-center font-black text-slate-900 dark:text-gray-100 text-xl outline-none bg-transparent min-w-0"
                 />
                 {parseInt(dopBills[denom]) > 0 && (
-                  <span className="text-[10px] text-slate-400 font-bold shrink-0 hidden sm:block">
+                  <span className="text-[10px] text-slate-400 dark:text-gray-500 font-bold shrink-0 hidden sm:block">
                     ={(denom * parseInt(dopBills[denom])).toLocaleString()}
                   </span>
                 )}
@@ -105,7 +105,7 @@ export default function DopConfirmModal({ isOpen, onClose, onConfirm, requiredAm
           <div className={`rounded-xl p-4 mb-4 transition-all ${
             isExact ? 'bg-green-50 border-2 border-green-400' :
             isOver  ? 'bg-amber-50 border-2 border-amber-400' :
-                      'bg-slate-100 border-2 border-slate-200'
+                      'bg-slate-100 dark:bg-gray-700 border-2 border-slate-200 dark:border-gray-600'
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -116,10 +116,10 @@ export default function DopConfirmModal({ isOpen, onClose, onConfirm, requiredAm
                     : <div className="w-5 h-5 rounded-full bg-slate-300 shrink-0" />
                 }
                 <div>
-                  <p className={`font-black text-lg ${isExact ? 'text-green-800' : isOver ? 'text-amber-800' : 'text-slate-500'}`}>
+                  <p className={`font-black text-lg ${isExact ? 'text-green-800' : isOver ? 'text-amber-800' : 'text-slate-500 dark:text-gray-400'}`}>
                     RD$ {totalEntered.toLocaleString('es-DO')}
                   </p>
-                  <p className={`text-xs font-bold ${isExact ? 'text-green-600' : isOver ? 'text-amber-600' : 'text-slate-400'}`}>
+                  <p className={`text-xs font-bold ${isExact ? 'text-green-600' : isOver ? 'text-amber-600' : 'text-slate-400 dark:text-gray-500'}`}>
                     {isExact
                       ? 'Monto exacto'
                       : isOver
@@ -143,7 +143,7 @@ export default function DopConfirmModal({ isOpen, onClose, onConfirm, requiredAm
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+              className="flex-1 py-3 rounded-xl font-bold text-slate-700 dark:text-gray-200 bg-slate-100 dark:bg-gray-700 hover:bg-slate-200 dark:hover:bg-gray-600 transition-colors"
             >
               Volver
             </button>
@@ -154,8 +154,8 @@ export default function DopConfirmModal({ isOpen, onClose, onConfirm, requiredAm
               disabled={isUnder}
               className={`flex-[2] py-3 rounded-xl font-black text-white transition-all active:scale-95 ${
                 !isUnder
-                  ? 'bg-slate-900 hover:bg-slate-800 shadow-lg'
-                  : 'bg-slate-200 cursor-not-allowed text-slate-400'
+                  ? 'bg-slate-900 dark:bg-gray-600 hover:bg-slate-800 dark:hover:bg-gray-500 shadow-lg'
+                  : 'bg-slate-200 dark:bg-gray-700 cursor-not-allowed text-slate-400 dark:text-gray-500'
               }`}
             >
               Confirmar y Procesar

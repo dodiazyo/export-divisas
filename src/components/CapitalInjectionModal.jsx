@@ -1,190 +1,292 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Loader2 } from 'lucide-react';
+import { PlusCircle, Loader2, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
+
+const DENOMS = {
+  DOP: [2000, 1000, 500, 200, 100, 50, 25, 10, 5, 1],
+  USD: [100, 50, 20, 10, 5, 1],
+  EUR: [500, 200, 100, 50, 20, 10, 5, 2, 1],
+};
+
+const SYM = { DOP: 'RD$', USD: '$', EUR: '€' };
+const COLOR = { DOP: 'var(--gold)', USD: 'var(--green)', EUR: 'var(--blue)' };
+
+function DenomPicker({ currency, counts, onChange }) {
+  const denoms = DENOMS[currency] || [];
+  const sym = SYM[currency];
+  const color = COLOR[currency];
+  const total = denoms.reduce((s, d) => s + d * (parseInt(counts[d] || 0)), 0);
+
+  return (
+    <div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'auto 1fr auto',
+        gap: '4px 8px', alignItems: 'center',
+      }}>
+        {denoms.map(d => {
+          const qty = counts[d] || '';
+          const sub = d * (parseInt(qty) || 0);
+          return (
+            <React.Fragment key={d}>
+              <div style={{ fontSize: 12, fontWeight: 700, color, fontFamily: 'monospace', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                {sym} {d >= 1000 ? (d/1000)+'K' : d}
+              </div>
+              <input
+                type="number" min="0" step="1"
+                value={qty}
+                onChange={e => {
+                  const v = Math.max(0, parseInt(e.target.value) || 0);
+                  onChange({ ...counts, [d]: v || '' });
+                }}
+                style={{
+                  width: '100%', padding: '5px 8px',
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 6, color: 'var(--text-primary)',
+                  fontSize: 14, fontWeight: 700, fontFamily: 'monospace',
+                  outline: 'none', textAlign: 'center',
+                }}
+                onFocus={e => e.target.style.borderColor = color}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                placeholder="0"
+              />
+              <div style={{ fontSize: 12, color: sub > 0 ? color : 'var(--text-faint)', fontFamily: 'monospace', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                = {sym} {sub.toLocaleString('es-DO')}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {/* Total row */}
+      <div style={{
+        borderTop: '2px solid var(--border)', marginTop: 8, paddingTop: 8,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-subtle)', letterSpacing: 1.5, textTransform: 'uppercase' }}>TOTAL</span>
+        <span style={{ fontSize: 22, fontWeight: 900, color, fontFamily: 'monospace' }}>
+          {sym} {total.toLocaleString('es-DO')}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function CapitalInjectionModal({ isOpen, onClose, onConfirm, adminName, myShiftId }) {
   const [currency, setCurrency] = useState('DOP');
-  const [amount, setAmount] = useState('');
+  const [counts, setCounts] = useState({});
   const [note, setNote] = useState('');
-  
+
   const [activeShifts, setActiveShifts] = useState([]);
   const [selectedShiftId, setSelectedShiftId] = useState('');
   const [loadingShifts, setLoadingShifts] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
-      setAmount('');
+      setCounts({});
       setNote('');
       setCurrency('DOP');
-      setSelectedShiftId(myShiftId || '');
+      setSelectedShiftId(myShiftId ? String(myShiftId) : '');
+      setFetchError(null);
       fetchActiveShifts();
     }
   }, [isOpen, myShiftId]);
 
+  // Reset counts when currency changes
+  useEffect(() => { setCounts({}); }, [currency]);
+
   const fetchActiveShifts = async () => {
     setLoadingShifts(true);
+    setFetchError(null);
     try {
       const shifts = await api.getActiveShifts();
-      setActiveShifts(shifts);
-      
-      // If no myShiftId is set, default to the first available shift
-      if (!myShiftId && shifts.length > 0) {
-        setSelectedShiftId(shifts[0].id);
+      setActiveShifts(shifts || []);
+      if (!myShiftId && shifts && shifts.length > 0) {
+        setSelectedShiftId(String(shifts[0].id));
       }
     } catch (err) {
-      console.error('Failed to load active shifts', err);
+      setFetchError(err.message || 'Error al cargar las cajas');
     } finally {
       setLoadingShifts(false);
     }
   };
 
-  const formatAmt = (val) => {
-    const raw = val.replace(/[^0-9.]/g, '');
-    if ((raw.match(/\./g) || []).length > 1) return amount;
-    const [int, dec] = raw.split('.');
-    const formatted = (int || '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    return dec !== undefined ? `${formatted}.${dec.slice(0, 2)}` : formatted;
-  };
+  const selectedShift = activeShifts.find(s => String(s.id) === String(selectedShiftId));
+  const sd = selectedShift?.data || {};
+
+  const denoms = DENOMS[currency] || [];
+  const total = denoms.reduce((s, d) => s + d * (parseInt(counts[d] || 0)), 0);
+  const denomData = Object.fromEntries(
+    Object.entries(counts).filter(([, v]) => parseInt(v) > 0).map(([k, v]) => [k, parseInt(v)])
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!selectedShiftId) {
-      alert('Debe seleccionar la caja destino.');
-      return;
-    }
-
-    const raw = parseFloat((amount || '').replace(/,/g, ''));
-    if (!raw || raw <= 0) {
-      alert('Ingrese un monto válido mayor a cero.');
-      return;
-    }
-    
-    onConfirm({ 
-      shiftId: selectedShiftId,
-      currency, 
-      amount: raw, 
-      note: note.trim(), 
-      adminName 
-    });
-    
-    setAmount('');
+    if (!selectedShiftId) { alert('Debe seleccionar la caja destino.'); return; }
+    if (!total || total <= 0) { alert('Ingrese al menos una denominación.'); return; }
+    onConfirm({ shiftId: selectedShiftId, currency, amount: total, note: note.trim(), adminName, denominations: denomData });
+    setCounts({});
     setNote('');
     setCurrency('DOP');
   };
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+  const canSubmit = activeShifts.length > 0 && selectedShiftId && !loadingShifts && total > 0;
 
-        <div className="bg-indigo-700 text-white px-6 py-5 text-center">
-          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
-            <PlusCircle size={28} />
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 60,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)',
+    }}>
+      <div style={{
+        background: 'var(--bg-surface)', border: '1px solid var(--border)',
+        borderRadius: 18, width: '100%', maxWidth: 480,
+        boxShadow: '0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(212,168,67,0.1)',
+        overflow: 'hidden', maxHeight: '95vh', display: 'flex', flexDirection: 'column',
+      }}>
+
+        {/* Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, var(--gold-bg), var(--bg-elevated))',
+          borderBottom: '1px solid var(--border)',
+          padding: '18px 22px',
+          display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0,
+        }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+            background: 'linear-gradient(135deg, var(--gold), var(--gold-light))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <PlusCircle size={20} color="var(--bg-base)" strokeWidth={2.5} />
           </div>
-          <h2 className="text-xl font-bold">Inyección de Capital</h2>
-          <p className="text-indigo-200 text-sm mt-1">Asignación de fondos a caja · Solo Administrador</p>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--gold-light)', letterSpacing: 0.5 }}>
+              Enviar dinero a la caja
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-subtle)', marginTop: 1 }}>
+              {adminName}
+            </div>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
 
-          {/* Target Shift Selector */}
+          {/* Shift selector */}
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-subtle)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>
               Caja Destino
             </label>
             {loadingShifts ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <Loader2 className="animate-spin" size={16} /> Cargando cajas...
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-subtle)', fontSize: 13 }}>
+                <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                Cargando cajas activas...
+              </div>
+            ) : fetchError ? (
+              <div style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--red)', fontSize: 12, fontWeight: 600 }}>
+                  <AlertTriangle size={14} />{fetchError}
+                </div>
+                <button type="button" onClick={fetchActiveShifts} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, background: 'var(--red-bg)', border: '1px solid var(--red)', color: 'var(--red)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  <RefreshCw size={10} /> Reintentar
+                </button>
               </div>
             ) : activeShifts.length === 0 ? (
-              <div className="text-sm font-medium text-red-500 bg-red-50 p-3 rounded-xl border border-red-100">
-                No hay cajas abiertas en este momento.
+              <div style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 10, padding: '10px 14px', color: 'var(--red)', fontSize: 12, fontWeight: 600 }}>
+                No hay cajas abiertas en este momento
               </div>
             ) : (
-              <select
-                required
-                value={selectedShiftId}
-                onChange={(e) => setSelectedShiftId(e.target.value)}
-                className="w-full text-sm font-bold p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 bg-white"
-              >
-                <option value="" disabled>-- Seleccione Caja --</option>
-                {activeShifts.map(s => (
-                  <option key={s.id} value={s.id}>
-                    Caja #{s.id} - {s.user_name}
-                  </option>
-                ))}
-              </select>
+              <div style={{ position: 'relative' }}>
+                <select
+                  required
+                  value={selectedShiftId}
+                  onChange={e => setSelectedShiftId(e.target.value)}
+                  style={{
+                    width: '100%', appearance: 'none',
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 10, padding: '10px 38px 10px 14px',
+                    color: 'var(--text-primary)', fontSize: 14, fontWeight: 700,
+                    outline: 'none', cursor: 'pointer',
+                  }}
+                >
+                  <option value="" disabled>-- Seleccione una caja --</option>
+                  {activeShifts.map(s => (
+                    <option key={s.id} value={String(s.id)}>
+                      Caja #{s.id} — {s.user_name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={15} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)', pointerEvents: 'none' }} />
+              </div>
             )}
           </div>
 
+          {/* Currency selector */}
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Moneda</label>
-            <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
-              {['DOP', 'USD'].map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCurrency(c)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
-                    currency === c
-                      ? 'bg-white shadow text-indigo-700'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {c === 'DOP' ? 'Pesos (DOP)' : 'Dólares (USD)'}
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-subtle)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>
+              Moneda
+            </label>
+            <div style={{ display: 'flex', background: 'var(--bg-card)', borderRadius: 10, padding: 3, gap: 3, border: '1px solid var(--border)' }}>
+              {[
+                { id: 'DOP', label: 'Pesos', flag: '🇩🇴' },
+                { id: 'USD', label: 'Dólares', flag: '🇺🇸' },
+                { id: 'EUR', label: 'Euros', flag: '🇪🇺' },
+              ].map(c => (
+                <button key={c.id} type="button" onClick={() => setCurrency(c.id)} style={{
+                  flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: currency === c.id ? 'var(--bg-elevated)' : 'transparent',
+                  color: currency === c.id ? COLOR[c.id] : 'var(--text-subtle)',
+                  fontWeight: currency === c.id ? 800 : 500, fontSize: 12,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                  transition: 'all 0.15s',
+                }}>
+                  <span style={{ fontSize: 15 }}>{c.flag}</span>
+                  <span>{c.label}</span>
                 </button>
               ))}
             </div>
           </div>
 
+          {/* Denomination picker */}
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Monto</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
-                {currency === 'DOP' ? 'RD$' : '$'}
-              </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                required
-                autoFocus
-                value={amount}
-                onChange={e => setAmount(formatAmt(e.target.value))}
-                className="w-full text-2xl font-bold text-center p-4 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none text-slate-900 placeholder:text-slate-300"
-                placeholder="0.00"
-              />
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-subtle)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+              Denominaciones
+            </label>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' }}>
+              <DenomPicker currency={currency} counts={counts} onChange={setCounts} />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-              Nota / Motivo <span className="text-slate-300 font-normal normal-case">(opcional)</span>
-            </label>
-            <input
-              type="text"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-slate-800 font-medium"
-              placeholder="Ej: Reposición de fondo, Cambio de turno..."
-              maxLength={120}
-            />
-          </div>
+          {/* Note */}
+          <input
+            type="text" value={note} onChange={e => setNote(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 14px',
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 10, color: 'var(--text-primary)', fontSize: 13, outline: 'none',
+            }}
+            placeholder="Nota / Motivo (opcional)"
+            maxLength={120}
+          />
 
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-3 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
-            >
+          {/* Buttons */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} style={{
+              flex: 1, padding: '12px 0', borderRadius: 10,
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              color: 'var(--text-muted)', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+            }}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={activeShifts.length === 0}
-              className="flex-[2] py-3 rounded-xl font-black text-white bg-indigo-700 hover:bg-indigo-600 shadow-lg disabled:opacity-50 disabled:shadow-none transition-all active:scale-95"
-            >
-              Confirmar Inyección
+            <button type="submit" disabled={!canSubmit} style={{
+              flex: 2, padding: '12px 0', borderRadius: 10, border: 'none',
+              background: canSubmit ? 'linear-gradient(135deg, var(--gold), var(--gold-light))' : 'var(--bg-elevated)',
+              color: canSubmit ? 'var(--bg-base)' : 'var(--text-subtle)',
+              fontWeight: 900, fontSize: 14, cursor: canSubmit ? 'pointer' : 'not-allowed',
+              boxShadow: canSubmit ? '0 4px 16px rgba(212,168,67,0.3)' : 'none',
+              transition: 'all 0.2s',
+            }}>
+              ✓ Enviar a la caja
             </button>
           </div>
 

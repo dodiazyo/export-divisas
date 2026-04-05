@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShoppingCart, Plus, Trash2, Receipt, Package } from 'lucide-react';
+import { multiply, sum, fmt } from '../lib/money.js';
 
 export default function CashRegisterView({ onSale, shift, settings }) {
   const [concept, setConcept] = useState('');
@@ -7,7 +8,7 @@ export default function CashRegisterView({ onSale, shift, settings }) {
   const [unitPrice, setUnitPrice] = useState('');
   const [cart, setCart] = useState([]);
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.total, 0);
+  const cartTotal = sum(cart.map(item => item.total));
 
   const handleAddItem = () => {
     const price = parseFloat(unitPrice);
@@ -19,7 +20,7 @@ export default function CashRegisterView({ onSale, shift, settings }) {
       concept: concept.trim(),
       qty: quantity,
       unitPrice: price,
-      total: price * quantity,
+      total: multiply(price, quantity),   // precisión exacta
     }]);
 
     setConcept('');
@@ -120,9 +121,9 @@ export default function CashRegisterView({ onSale, shift, settings }) {
   if (!shift) {
     return (
       <div className="h-full flex items-center justify-center flex-col gap-3">
-        <Package size={52} className="text-slate-300" />
-        <p className="text-slate-500 font-bold text-lg">Caja cerrada</p>
-        <p className="text-slate-400 text-sm">Abra la caja para registrar ventas externas.</p>
+        <Package size={52} className="text-slate-300 dark:text-gray-600" />
+        <p className="text-slate-500 dark:text-gray-400 font-bold text-lg">Caja cerrada</p>
+        <p className="text-slate-400 dark:text-gray-500 text-sm">Abra la caja para registrar ventas externas.</p>
       </div>
     );
   }
@@ -130,60 +131,60 @@ export default function CashRegisterView({ onSale, shift, settings }) {
   const previewSubtotal = (parseFloat(unitPrice) || 0) * (parseInt(qty) || 1);
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 p-4 lg:p-6 overflow-hidden">
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-gray-900 p-4 lg:p-6 overflow-hidden">
       <div className="max-w-4xl mx-auto w-full h-full flex flex-col">
 
         <div className="mb-6 shrink-0">
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-gray-100 flex items-center gap-2">
             <ShoppingCart className="text-indigo-600" />
             Ventas Externas
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Registre ventas de productos o servicios adicionales</p>
+          <p className="text-slate-500 dark:text-gray-400 text-sm mt-1">Registre ventas de productos o servicios adicionales</p>
         </div>
 
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
 
           {/* Left: Entry form */}
           <div className="overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-              <h3 className="font-black text-slate-700 uppercase text-sm tracking-wider mb-4">Nuevo Item</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200 dark:border-gray-700 p-5">
+              <h3 className="font-black text-slate-700 dark:text-gray-200 uppercase text-sm tracking-wider mb-4">Nuevo Item</h3>
               <div className="space-y-3">
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Concepto / Descripción</label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-gray-400 mb-1 uppercase tracking-wider">Concepto / Descripción</label>
                   <input
                     type="text"
                     value={concept}
                     onChange={e => setConcept(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleAddItem()}
                     autoFocus
-                    className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none font-medium text-slate-800 placeholder:text-slate-300"
+                    className="w-full p-3 border-2 border-slate-200 dark:border-gray-600 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none font-medium text-slate-800 dark:text-gray-100 bg-white dark:bg-gray-700 placeholder:text-slate-300"
                     placeholder="Ej: Fotocopia, Servicio de notaría..."
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Cantidad</label>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-gray-400 mb-1 uppercase tracking-wider">Cantidad</label>
                     <input
                       type="number"
                       min="1"
                       value={qty}
                       onChange={e => setQty(e.target.value)}
-                      className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none font-black text-slate-800 text-center text-xl"
+                      className="w-full p-3 border-2 border-slate-200 dark:border-gray-600 rounded-xl focus:border-indigo-500 outline-none font-black text-slate-800 dark:text-gray-100 bg-white dark:bg-gray-700 text-center text-xl"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Precio Unit.</label>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-gray-400 mb-1 uppercase tracking-wider">Precio Unit.</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">RD$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-500 font-bold text-xs">RD$</span>
                       <input
                         type="number"
                         min="0"
                         step="0.01"
                         value={unitPrice}
                         onChange={e => setUnitPrice(e.target.value)}
-                        className="w-full pl-10 p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none font-bold text-slate-800 text-right"
+                        className="w-full pl-10 p-3 border-2 border-slate-200 dark:border-gray-600 rounded-xl focus:border-indigo-500 outline-none font-bold text-slate-800 dark:text-gray-100 bg-white dark:bg-gray-700 text-right"
                         placeholder="0.00"
                       />
                     </div>
@@ -215,12 +216,12 @@ export default function CashRegisterView({ onSale, shift, settings }) {
 
           {/* Right: Cart */}
           <div className="flex flex-col min-h-0">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden h-full">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-slate-200 dark:border-gray-700 flex flex-col overflow-hidden h-full">
 
-              <div className="p-4 border-b border-slate-200 bg-slate-50 shrink-0">
-                <h3 className="font-black text-slate-700 uppercase text-sm tracking-wider">
+              <div className="p-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-700 shrink-0">
+                <h3 className="font-black text-slate-700 dark:text-gray-200 uppercase text-sm tracking-wider">
                   Carrito{' '}
-                  <span className="text-slate-400 font-normal">
+                  <span className="text-slate-400 dark:text-gray-500 font-normal">
                     ({cart.length} {cart.length === 1 ? 'item' : 'items'})
                   </span>
                 </h3>
@@ -230,17 +231,17 @@ export default function CashRegisterView({ onSale, shift, settings }) {
                 {cart.length === 0 ? (
                   <div className="text-center py-12 text-slate-300">
                     <ShoppingCart size={48} className="mx-auto mb-3 opacity-40" />
-                    <p className="text-sm font-bold text-slate-400">Sin items en el carrito</p>
-                    <p className="text-xs text-slate-300 mt-1">Agregue productos o servicios</p>
+                    <p className="text-sm font-bold text-slate-400 dark:text-gray-500">Sin items en el carrito</p>
+                    <p className="text-xs text-slate-300 dark:text-gray-600 mt-1">Agregue productos o servicios</p>
                   </div>
                 ) : (
                   cart.map(item => (
-                    <div key={item.id} className="flex items-center gap-3 bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <div key={item.id} className="flex items-center gap-3 bg-slate-50 dark:bg-gray-700 rounded-xl p-3 border border-slate-100 dark:border-gray-600">
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-slate-800 truncate text-sm">{item.concept}</p>
-                        <p className="text-xs text-slate-400">{item.qty} × RD$ {item.unitPrice.toLocaleString()}</p>
+                        <p className="font-bold text-slate-800 dark:text-gray-100 truncate text-sm">{item.concept}</p>
+                        <p className="text-xs text-slate-400 dark:text-gray-500">{item.qty} × RD$ {item.unitPrice.toLocaleString()}</p>
                       </div>
-                      <span className="font-black text-slate-900 shrink-0 text-sm">
+                      <span className="font-black text-slate-900 dark:text-gray-100 shrink-0 text-sm">
                         RD$ {item.total.toLocaleString()}
                       </span>
                       <button

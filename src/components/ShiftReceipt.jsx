@@ -16,11 +16,39 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
 
   const storeName = settings?.name || 'CASA DE CAMBIO';
 
-  const exchangeTxs = shift.transactionsList?.filter(s => s.type === 'exchange') || [];
-  const externalSales = shift.transactionsList?.filter(s => s.type === 'external_sale') || [];
-  const injections = shift.injections || [];
+  const exchangeTxs   = shift.transactionsList?.filter(s => s.type === 'exchange' && !s.voided) || [];
+  const externalSales = shift.transactionsList?.filter(s => s.type === 'external_sale' && !s.voided) || [];
+  const injections    = shift.injections || [];
   const totalDOPInjected = shift.totalDOPInjected ||
     injections.filter(i => i.currency === 'DOP').reduce((sum, i) => sum + i.amount, 0);
+
+  // ── Ganancia desglosada ──────────────────────────────────────────────────────
+  const usdTxs = exchangeTxs.filter(t => t.currency === 'USD');
+  const eurTxs = exchangeTxs.filter(t => t.currency === 'EUR');
+
+  const usdGain    = usdTxs.reduce((s, t) => s + (t.gain || 0), 0);
+  const eurGain    = eurTxs.reduce((s, t) => s + (t.gain || 0), 0);
+  const extGain    = externalSales.reduce((s, t) => s + (t.total || 0), 0);
+  const totalCalcGain = usdGain + eurGain + extGain;
+
+  // Tasa promedio ponderada de compra
+  const usdTotalAmt = usdTxs.reduce((s, t) => s + (t.amount || 0), 0);
+  const eurTotalAmt = eurTxs.reduce((s, t) => s + (t.amount || 0), 0);
+  const usdAvgBuy   = usdTxs.length
+    ? usdTxs.reduce((s, t) => s + (t.rate || 0) * (t.amount || 0), 0) / (usdTotalAmt || 1)
+    : 0;
+  const eurAvgBuy   = eurTxs.length
+    ? eurTxs.reduce((s, t) => s + (t.rate || 0) * (t.amount || 0), 0) / (eurTotalAmt || 1)
+    : 0;
+  const usdAvgSell  = usdTxs.length
+    ? usdTxs.reduce((s, t) => s + (t.salesRate || 0) * (t.amount || 0), 0) / (usdTotalAmt || 1)
+    : 0;
+  const eurAvgSell  = eurTxs.length
+    ? eurTxs.reduce((s, t) => s + (t.salesRate || 0) * (t.amount || 0), 0) / (eurTotalAmt || 1)
+    : 0;
+
+  const fmtRate = (r) => Number(r || 0).toFixed(2);
+  const fmtAmt  = (n) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 });
 
   return (
     <>
@@ -171,20 +199,70 @@ export default function ShiftReceipt({ isOpen, onClose, shift, settings }) {
                 </section>
 
                 <section>
-                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest border-l-4 border-green-600 pl-3 mb-4">Posición Divisas (USD)</h3>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest border-l-4 border-green-600 pl-3 mb-4">Cálculo de Ganancia</h3>
                   <div className="bg-green-50/50 border border-green-100 rounded-xl p-5 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-green-800">Dólares Comprados:</span>
-                      <span className="font-black text-green-900 text-xl">$ {shift.usdOnHand?.toLocaleString()} USD</span>
-                    </div>
-                    <div className={`flex justify-between items-center text-sm font-bold ${shift.usdDifference >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                      <span>Diferencia en USD:</span>
-                      <span>{shift.usdDifference > 0 ? '+' : ''}{shift.usdDifference}</span>
-                    </div>
-                    <div className="pt-2 border-t border-green-200 flex justify-between items-center">
-                      <span className="text-green-800 text-xs font-bold uppercase">Ganancia Estimada del Turno:</span>
-                      <span className="font-black text-green-900 font-mono text-lg">
-                        RD$ {shift.totalGain?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+
+                    {/* USD */}
+                    {usdTxs.length > 0 && (
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-green-800 font-bold text-sm">Cambios USD</span>
+                            <div className="text-[10px] text-green-600 mt-0.5">
+                              {usdTxs.length} op · $ {fmtAmt(usdTotalAmt)} · Compra {fmtRate(usdAvgBuy)} · Venta {fmtRate(usdAvgSell)}
+                            </div>
+                          </div>
+                          <span className="font-black text-green-900 font-mono">RD$ {fmtAmt(usdGain)}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* EUR */}
+                    {eurTxs.length > 0 && (
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-blue-800 font-bold text-sm">Cambios EUR</span>
+                            <div className="text-[10px] text-blue-600 mt-0.5">
+                              {eurTxs.length} op · € {fmtAmt(eurTotalAmt)} · Compra {fmtRate(eurAvgBuy)} · Venta {fmtRate(eurAvgSell)}
+                            </div>
+                          </div>
+                          <span className="font-black text-blue-900 font-mono">RD$ {fmtAmt(eurGain)}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* External sales */}
+                    {extGain > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-700 font-bold text-sm">Ventas externas ({externalSales.length} op)</span>
+                        <span className="font-black text-slate-900 font-mono">RD$ {fmtAmt(extGain)}</span>
+                      </div>
+                    )}
+
+                    {/* Divisas en mano */}
+                    {(shift.usdOnHand > 0 || shift.eurOnHand > 0) && (
+                      <div className="pt-2 border-t border-green-100">
+                        {shift.usdOnHand > 0 && (
+                          <div className="flex justify-between text-xs text-green-700">
+                            <span>USD en caja:</span>
+                            <span className="font-mono font-bold">$ {fmtAmt(shift.usdOnHand)}</span>
+                          </div>
+                        )}
+                        {shift.eurOnHand > 0 && (
+                          <div className="flex justify-between text-xs text-blue-700">
+                            <span>EUR en caja:</span>
+                            <span className="font-mono font-bold">€ {fmtAmt(shift.eurOnHand)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Total */}
+                    <div className="pt-3 border-t-2 border-green-300 flex justify-between items-center bg-green-100 -mx-5 -mb-5 px-5 py-3 rounded-b-xl">
+                      <span className="text-green-900 font-black uppercase text-xs tracking-widest">Ganancia Total del Turno</span>
+                      <span className="font-black text-green-900 font-mono text-xl">
+                        RD$ {fmtAmt(totalCalcGain)}
                       </span>
                     </div>
                   </div>
